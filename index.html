@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Royal Fleek POS Elite</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans selection:bg-amber-500 selection:text-slate-950 overflow-x-hidden" data-theme="royal-gold">
+
+    <!-- AUTHENTICATION / LOGIN SCREEN -->
+    <div id="authScreen" class="fixed inset-0 bg-slate-950 z-50 flex items-center justify-center p-6 backdrop-blur-2xl">
+        <div class="bg-slate-900/90 border border-amber-500/40 w-full max-w-md rounded-3xl p-8 shadow-2xl space-y-6 relative overflow-hidden animate-fadeIn">
+            <div class="absolute -top-24 -right-24 w-48 h-48 bg-amber-500/20 rounded-full blur-3xl"></div>
+            <div class="text-center space-y-2">
+                <div class="w-14 h-14 bg-gradient-to-tr from-amber-500 to-yellow-300 text-slate-950 rounded-2xl mx-auto flex items-center justify-center shadow-lg shadow-amber-500/30">
+                    <i data-lucide="crown" class="w-7 h-7 stroke-[2.5]"></i>
+                </div>
+                <h1 class="text-2xl font-black bg-gradient-to-r from-amber-200 via-amber-400 to-yellow-300 bg-clip-text text-transparent">ROYAL FLEEK POS</h1>
+                <p id="authSubtitle" class="text-xs text-slate-400">Initialize operator session & security credentials.</p>
+            </div>
+
+            <!-- Step 1: Create Account -->
+            <form id="authRegisterForm" onsubmit="handleAuthRegister(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Operator Username</label>
+                    <input type="text" id="authRegUser" required class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner" placeholder="e.g. Administrator">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Security PIN (4 Digits)</label>
+                    <input type="password" id="authRegPin" maxlength="4" required class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm tracking-widest focus:outline-none focus:border-amber-400 shadow-inner" placeholder="••••">
+                </div>
+                <button type="submit" class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black rounded-2xl shadow-xl shadow-amber-500/25 hover:scale-[1.01] active:scale-95 transition-all uppercase tracking-wider text-xs">Create Session</button>
+            </form>
+
+            <!-- Step 2: Master Code Gate -->
+            <div id="authCodeGate" class="space-y-4 hidden">
+                <div class="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-center">
+                    <p class="text-xs text-amber-300">Session created! Enter Master Override Code <strong>63552285</strong> to unlock terminal.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Master Override Code</label>
+                    <input type="password" id="masterCodeInput" maxlength="8" class="w-full text-center text-xl tracking-[0.3em] bg-slate-950 border border-amber-500/40 rounded-2xl px-4 py-3.5 text-amber-300 focus:outline-none focus:border-amber-400 shadow-inner" placeholder="••••••••">
+                </div>
+                <button onclick="verifyMasterCode()" class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black rounded-2xl shadow-xl shadow-amber-500/25 hover:scale-[1.01] active:scale-95 transition-all uppercase tracking-wider text-xs">Unlock Terminal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN APP WRAPPER -->
+    <div id="mainApp" class="relative z-10 flex h-screen overflow-hidden hidden">
+        <aside class="w-72 bg-slate-900/90 backdrop-blur-2xl border-r border-amber-500/20 flex flex-col justify-between p-6 shadow-2xl">
+            <div>
+                <div class="flex items-center gap-3.5 mb-10">
+                    <div class="p-3 bg-gradient-to-tr from-amber-500 via-yellow-400 to-amber-300 rounded-2xl shadow-xl shadow-amber-500/30 text-slate-950 animate-bounce" style="animation-duration: 3s;">
+                        <i data-lucide="crown" class="w-6 h-6 stroke-[2.5]"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-black text-lg tracking-wider bg-gradient-to-r from-amber-200 via-amber-400 to-yellow-300 bg-clip-text text-transparent">ROYAL FLEEK</h1>
+                        <p class="text-[10px] text-amber-400/70 tracking-[0.2em] uppercase font-semibold">Elite POS Terminal</p>
+                    </div>
+                </div>
+
+                <nav class="space-y-2.5">
+                    <button onclick="switchTab('dashboard')" class="nav-btn w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl font-semibold transition-all duration-300 bg-gradient-to-r from-amber-500/25 to-amber-500/5 text-amber-300 border-l-4 border-amber-400 shadow-lg shadow-amber-500/10 scale-[1.02]" data-tab="dashboard">
+                        <i data-lucide="layout-dashboard" class="w-5 h-5 text-amber-400"></i> Dashboard
+                    </button>
+                    <button onclick="switchTab('accounts')" class="nav-btn w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl font-semibold transition-all duration-300 text-slate-400 hover:text-slate-100 hover:bg-white/5" data-tab="accounts">
+                        <i data-lucide="users" class="w-5 h-5"></i> Load Accounts
+                    </button>
+                    <button onclick="switchTab('createAccount')" class="nav-btn w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl font-semibold transition-all duration-300 text-slate-400 hover:text-slate-100 hover:bg-white/5" data-tab="createAccount">
+                        <i data-lucide="user-plus" class="w-5 h-5"></i> New Account
+                    </button>
+                    <button onclick="switchTab('products')" class="nav-btn w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl font-semibold transition-all duration-300 text-slate-400 hover:text-slate-100 hover:bg-white/5" data-tab="products">
+                        <i data-lucide="package" class="w-5 h-5"></i> Products & Catalog
+                    </button>
+                    <button onclick="switchTab('settings')" class="nav-btn w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl font-semibold transition-all duration-300 text-slate-400 hover:text-slate-100 hover:bg-white/5" data-tab="settings">
+                        <i data-lucide="settings" class="w-5 h-5"></i> Admin Settings
+                    </button>
+                </nav>
+            </div>
+
+            <div class="p-4 rounded-2xl bg-gradient-to-b from-amber-500/10 to-transparent border border-amber-500/20 shadow-inner">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-[11px] text-amber-300 font-bold uppercase tracking-wider">Royal Theme</span>
+                    <i data-lucide="palette" class="w-4 h-4 text-amber-400"></i>
+                </div>
+                <select id="themeSelector" onchange="changeTheme(this.value)" class="w-full bg-slate-950 border border-amber-500/30 rounded-xl px-3 py-2 text-xs font-medium text-amber-200 focus:outline-none focus:border-amber-400 cursor-pointer">
+                    <option value="royal-gold">Royal Gold</option>
+                    <option value="emerald-luxury">Emerald Luxury</option>
+                    <option value="obsidian-neon">Obsidian Neon</option>
+                </select>
+            </div>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto p-10 relative">
+
+            <!-- TAB 1: DASHBOARD -->
+            <section id="tab-dashboard" class="tab-content space-y-8 animate-fadeIn">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h2 class="text-3xl font-black tracking-tight bg-gradient-to-r from-white via-slate-200 to-amber-300 bg-clip-text text-transparent">System Overview</h2>
+                        <p class="text-sm text-slate-400 mt-1">Session active. Secure browser-based memory loaded.</p>
+                    </div>
+                    <button onclick="switchTab('createAccount')" class="px-6 py-3 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-slate-950 font-extrabold rounded-2xl shadow-xl shadow-amber-500/25 hover:scale-105 active:scale-95 transition-all flex items-center gap-2">
+                        <i data-lucide="user-plus" class="w-4 h-4"></i> New Account
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-6">
+                    <div class="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-2xl border border-amber-500/20 relative overflow-hidden group hover:border-amber-500/50 transition-all">
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Total Accounts</p>
+                        <h3 id="statTotalAccounts" class="text-4xl font-black text-amber-300">0</h3>
+                    </div>
+                    <div class="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-2xl border border-amber-500/20 relative overflow-hidden group hover:border-amber-500/50 transition-all">
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Total Vault Capital</p>
+                        <h3 id="statTotalCapital" class="text-4xl font-black text-emerald-400">$0.00</h3>
+                    </div>
+                    <div class="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-2xl border border-amber-500/20 relative overflow-hidden group hover:border-amber-500/50 transition-all">
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Active Products</p>
+                        <h3 id="statTotalProducts" class="text-4xl font-black text-purple-400">0</h3>
+                    </div>
+                </div>
+
+                <div class="p-8 rounded-3xl bg-slate-900/50 backdrop-blur-2xl border border-amber-500/20 shadow-xl space-y-4">
+                    <h3 class="text-xl font-extrabold text-amber-200">Quick Account Search</h3>
+                    <div class="flex gap-4">
+                        <input type="text" id="quickSearchInput" placeholder="Enter account number or customer name..." class="flex-1 bg-slate-950 border border-amber-500/30 rounded-2xl px-5 py-3.5 text-slate-200 focus:outline-none focus:border-amber-400 shadow-inner">
+                        <button onclick="executeQuickSearch()" class="px-8 py-3.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold rounded-2xl hover:bg-amber-500/30 transition-all">Search & Load</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: LOAD ACCOUNTS -->
+            <section id="tab-accounts" class="tab-content hidden space-y-8 animate-fadeIn">
+                <div>
+                    <h2 class="text-3xl font-black tracking-tight bg-gradient-to-r from-white via-slate-200 to-amber-300 bg-clip-text text-transparent">Account Directory</h2>
+                    <p class="text-sm text-slate-400 mt-1">Search instantly by account number or customer name.</p>
+                </div>
+
+                <div class="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-2xl border border-amber-500/20 grid grid-cols-1 md:grid-cols-2 gap-6 shadow-xl">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-2">Direct Account Number Load</label>
+                        <div class="flex gap-3">
+                            <input type="text" id="loadAccNumInput" placeholder="e.g. ACC-1001" class="flex-1 bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 focus:outline-none focus:border-amber-400 shadow-inner">
+                            <button onclick="loadAccountByNumber(document.getElementById('loadAccNumInput').value.trim())" class="px-6 py-3 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-bold rounded-2xl shadow-lg shadow-amber-500/20 hover:scale-105 transition-all">Load</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-2">Find Account by Name</label>
+                        <input type="text" id="findAccNameInput" placeholder="Type customer name..." oninput="filterAccountList(this.value)" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 focus:outline-none focus:border-amber-400 shadow-inner">
+                    </div>
+                </div>
+
+                <div id="accountsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+            </section>
+
+            <!-- TAB 3: CREATE ACCOUNT -->
+            <section id="tab-createAccount" class="tab-content hidden space-y-8 animate-fadeIn">
+                <div>
+                    <h2 class="text-3xl font-black tracking-tight bg-gradient-to-r from-white via-slate-200 to-amber-300 bg-clip-text text-transparent">Register New Account</h2>
+                    <p class="text-sm text-slate-400 mt-1">Configure customer profile credentials and starting vault capital.</p>
+                </div>
+
+                <form onsubmit="handleCreateAccount(event)" class="max-w-2xl p-8 rounded-3xl bg-slate-900/60 backdrop-blur-2xl border border-amber-500/20 space-y-6 shadow-2xl">
+                    <div class="grid grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-2">Account Number *</label>
+                            <input type="text" id="newAccNumber" required class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 focus:outline-none focus:border-amber-400 shadow-inner" placeholder="e.g. ACC-001">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-2">Customer Full Name *</label>
+                            <input type="text" id="newAccName" required class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 focus:outline-none focus:border-amber-400 shadow-inner" placeholder="e.g. Alexander Vance">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-2">Email Address *</label>
+                            <input type="email" id="newAccEmail" required class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 focus:outline-none focus:border-amber-400 shadow-inner" placeholder="alexander@royal.com">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-2">Starting Balance ($) *</label>
+                            <input type="number" step="0.01" id="newAccBalance" required class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 focus:outline-none focus:border-amber-400 shadow-inner" placeholder="1000.00">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-2">Additional Information & Notes</label>
+                        <textarea id="newAccInfo" rows="3" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 focus:outline-none focus:border-amber-400 shadow-inner" placeholder="VIP Tier Member..."></textarea>
+                    </div>
+                    <button type="submit" class="w-full py-4 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-slate-950 font-black rounded-2xl shadow-xl shadow-amber-500/30 hover:scale-[1.01] transition-all uppercase tracking-wider">Initialize Account</button>
+                </form>
+            </section>
+
+            <!-- TAB 4: PRODUCTS & CATALOG -->
+            <section id="tab-products" class="tab-content hidden space-y-8 animate-fadeIn">
+                <div>
+                    <h2 class="text-3xl font-black tracking-tight bg-gradient-to-r from-white via-slate-200 to-amber-300 bg-clip-text text-transparent">Product Catalog & Number Center</h2>
+                    <p class="text-sm text-slate-400 mt-1">Assign product item numbers, upload pictures, and set prices.</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="p-8 rounded-3xl bg-slate-900/60 backdrop-blur-2xl border border-amber-500/20 space-y-6 shadow-2xl">
+                        <h3 class="text-xl font-bold text-amber-200">Register New Product</h3>
+                        <form onsubmit="handleCreateProduct(event)" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Product Item Number *</label>
+                                <input type="text" id="prodNumber" required placeholder="e.g. P-101" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 focus:outline-none focus:border-amber-400 shadow-inner">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Product Name *</label>
+                                <input type="text" id="prodName" required class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 focus:outline-none focus:border-amber-400 shadow-inner">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Price ($) *</label>
+                                <input type="number" step="0.01" id="prodPrice" required class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 focus:outline-none focus:border-amber-400 shadow-inner">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Product Picture</label>
+                                <input type="file" accept="image/*" id="prodImageFile" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-2.5 text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-amber-500 file:text-slate-950 cursor-pointer">
+                            </div>
+                            <button type="submit" class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-bold rounded-2xl shadow-lg shadow-amber-500/20 hover:scale-[1.01] transition-all">Save Product</button>
+                        </form>
+                    </div>
+
+                    <div class="space-y-4">
+                        <h3 class="text-xl font-bold text-amber-200">Catalogued Items</h3>
+                        <div id="productsListContainer" class="space-y-4 max-h-[520px] overflow-y-auto pr-2"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 5: ADMIN SETTINGS -->
+            <section id="tab-settings" class="tab-content hidden space-y-8 animate-fadeIn">
+                <div>
+                    <h2 class="text-3xl font-black tracking-tight bg-gradient-to-r from-white via-slate-200 to-amber-300 bg-clip-text text-transparent">Admin Settings & Layout Control</h2>
+                    <p class="text-sm text-slate-400 mt-1">Requires security PIN <strong>6355</strong> to unlock advanced layout configuration.</p>
+                </div>
+
+                <div id="settingsLockedBox" class="p-8 rounded-3xl bg-slate-900/60 backdrop-blur-2xl border border-amber-500/20 max-w-md space-y-4 shadow-2xl">
+                    <div class="w-12 h-12 bg-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center">
+                        <i data-lucide="shield-alert" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-lg font-bold text-amber-200">Enter Admin PIN</h3>
+                    <input type="password" id="adminPinInput" maxlength="4" placeholder="••••" class="w-full text-center text-2xl tracking-widest bg-slate-950 border border-amber-500/40 rounded-2xl py-3 text-amber-300 focus:outline-none">
+                    <button onclick="unlockAdminSettings()" class="w-full py-3 bg-amber-500 text-slate-950 font-bold rounded-2xl text-xs uppercase tracking-wider shadow-lg">Unlock Settings</button>
+                </div>
+
+                <div id="settingsUnlockedBox" class="p-8 rounded-3xl bg-slate-900/60 backdrop-blur-2xl border border-amber-500/30 max-w-2xl space-y-6 shadow-2xl hidden">
+                    <div class="flex items-center gap-3 text-emerald-400 font-bold text-sm">
+                        <i data-lucide="check-circle" class="w-5 h-5"></i> Admin Access Verified (PIN: 6355)
+                    </div>
+                    <div class="space-y-4">
+                        <h4 class="text-xs font-bold text-amber-300 uppercase tracking-wider">Layout Customization</h4>
+                        <div class="flex items-center justify-between p-4 bg-slate-950 rounded-2xl border border-white/5">
+                            <span class="text-sm font-medium text-slate-200">Sidebar Compact View</span>
+                            <input type="checkbox" id="settingCompactSidebar" onchange="toggleSettingLayout()" class="w-5 h-5 accent-amber-500 cursor-pointer">
+                        </div>
+                        <div class="flex items-center justify-between p-4 bg-slate-950 rounded-2xl border border-white/5">
+                            <span class="text-sm font-medium text-slate-200">Glassmorphism Blur Intensity</span>
+                            <select id="settingBlurLevel" onchange="toggleSettingBlur(this.value)" class="bg-slate-900 border border-amber-500/30 rounded-xl px-3 py-1.5 text-xs text-amber-200">
+                                <option value="blur-2xl">Ultra (2xl)</option>
+                                <option value="blur-md">Medium (md)</option>
+                                <option value="none">None</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="pt-4 border-t border-white/5 flex gap-4">
+                        <button onclick="clearAllSystemData()" class="px-5 py-2.5 bg-rose-500/20 border border-rose-500/40 text-rose-300 font-bold rounded-2xl text-xs hover:bg-rose-500/30 transition-all">Wipe All Local Storage</button>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- ACCOUNT DETAIL MODAL & CART TERMINAL -->
+    <div id="accountModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-xl z-50 hidden flex items-center justify-center p-6 animate-fadeIn">
+        <div class="bg-slate-900 border border-amber-500/40 w-full max-w-5xl max-h-[92vh] rounded-3xl overflow-hidden flex flex-col shadow-2xl">
+            <div class="p-6 bg-slate-950/90 border-b border-amber-500/20 flex justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <div id="modalAvatar" class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-300 text-slate-950 font-black flex items-center justify-center text-xl shadow-lg"></div>
+                    <div>
+                        <h3 id="modalAccName" class="text-xl font-black text-amber-200"></h3>
+                        <p id="modalAccNum" class="text-xs text-amber-400/70 font-mono font-semibold"></p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="deleteCurrentAccount()" class="px-3.5 py-2 bg-rose-500/20 border border-rose-500/40 text-rose-300 hover:bg-rose-500/30 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i> Delete Account
+                    </button>
+                    <button onclick="closeAccountModal()" class="p-2.5 bg-white/5 hover:bg-white/10 rounded-2xl text-slate-400 hover:text-white transition-all">
+                        <i data-lucide="x" class="w-6 h-6"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-8 space-y-8">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Balance & Profile Info -->
+                    <div class="p-6 rounded-3xl bg-slate-950/60 border border-amber-500/20 col-span-1 flex flex-col justify-between shadow-inner">
+                        <div>
+                            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Current Vault Balance</span>
+                            <h2 id="modalAccBalance" class="text-4xl font-black text-emerald-400 mt-2">$0.00</h2>
+                        </div>
+                        <div class="mt-4 text-xs text-slate-400 space-y-1.5 pt-4 border-t border-white/5">
+                            <p><strong>Email:</strong> <span id="modalAccEmail" class="text-slate-200"></span></p>
+                            <p><strong>Info:</strong> <span id="modalAccInfoText" class="text-slate-200"></span></p>
+                        </div>
+                    </div>
+
+                    <!-- Money & Discount Operations -->
+                    <div class="p-6 rounded-3xl bg-slate-950/60 border border-amber-500/20 col-span-2 space-y-4 shadow-inner">
+                        <h4 class="text-xs font-bold text-amber-300 uppercase tracking-wider">Transaction Terminal (PIN 2285 for Removal)</h4>
+                        <div class="grid grid-cols-3 gap-3">
+                            <input type="number" step="0.01" id="transAmount" placeholder="Amount ($)" class="bg-slate-900 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner">
+                            <button onclick="promptMoneyAction('add')" class="py-3 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold rounded-2xl text-xs hover:bg-emerald-500/30 transition-all flex items-center justify-center gap-1.5">
+                                <i data-lucide="plus-circle" class="w-4 h-4"></i> Add Money
+                            </button>
+                            <button onclick="promptMoneyAction('remove')" class="py-3 bg-rose-500/20 border border-rose-500/40 text-rose-300 font-bold rounded-2xl text-xs hover:bg-rose-500/30 transition-all flex items-center justify-center gap-1.5">
+                                <i data-lucide="minus-circle" class="w-4 h-4"></i> Remove Money
+                            </button>
+                        </div>
+                        <div class="flex gap-3 pt-3 border-t border-white/5">
+                            <input type="number" step="1" id="discountPercent" placeholder="Discount %" class="w-32 bg-slate-900 border border-amber-500/30 rounded-2xl px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner">
+                            <button onclick="applyDiscount()" class="flex-1 py-2.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold rounded-2xl text-xs hover:bg-amber-500/30 transition-all flex items-center justify-center gap-1.5">
+                                <i data-lucide="tag" class="w-4 h-4"></i> Apply Account Discount %
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CART & PRODUCT NUMBER TERMINAL -->
+                <div class="p-6 rounded-3xl bg-slate-950/60 border border-amber-500/20 space-y-6 shadow-inner">
+                    <div class="flex justify-between items-center flex-wrap gap-4">
+                        <h4 class="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-2">
+                            <i data-lucide="shopping-cart" class="w-4 h-4 text-amber-400"></i> POS Cart Terminal (Enter Product Number)
+                        </h4>
+                        <div class="flex gap-2">
+                            <input type="text" id="cartProdNumInput" placeholder="Enter Product # (e.g. P-101)" class="bg-slate-900 border border-amber-500/30 rounded-xl px-4 py-2 text-xs text-slate-200 focus:outline-none w-48">
+                            <button onclick="addProductToCart(document.getElementById('cartProdNumInput').value.trim())" class="px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-bold rounded-xl text-xs hover:scale-105 transition-all shadow-md">Add to Cart</button>
+                        </div>
+                    </div>
+
+                    <!-- Cart Items Display Table -->
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-900 text-amber-300 uppercase font-bold border-b border-white/10">
+                                <tr>
+                                    <th class="p-3">Product Name</th>
+                                    <th class="p-3">Item #</th>
+                                    <th class="p-3">Price</th>
+                                    <th class="p-3">Quantity</th>
+                                    <th class="p-3">Item Discount %</th>
+                                    <th class="p-3">Total</th>
+                                    <th class="p-3 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cartItemsTableBody" class="divide-y divide-white/5 text-slate-200">
+                                <!-- Populated via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="flex justify-between items-center pt-4 border-t border-white/10">
+                        <div>
+                            <p class="text-xs text-slate-400">Cart Grand Total: <strong id="cartGrandTotal" class="text-emerald-400 text-base">$0.00</strong></p>
+                        </div>
+                        <button onclick="checkoutCart()" class="px-8 py-3 bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black rounded-2xl shadow-xl shadow-emerald-500/20 hover:scale-105 transition-all uppercase tracking-wider text-xs">Complete Checkout</button>
+                    </div>
+                </div>
+
+                <!-- History Section -->
+                <div class="space-y-4">
+                    <h4 class="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-2">
+                        <i data-lucide="history" class="w-4 h-4 text-amber-400"></i> Account Ledger & Purchase History
+                    </h4>
+                    <div id="modalHistoryList" class="space-y-2 max-h-48 overflow-y-auto pr-2"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PIN CODE MODAL (2285) -->
+    <div id="pinModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-xl z-60 hidden flex items-center justify-center p-6 animate-fadeIn">
+        <div class="bg-slate-900 border border-amber-500/40 w-full max-w-sm rounded-3xl p-8 text-center space-y-6 shadow-2xl">
+            <div class="w-14 h-14 bg-amber-500/20 text-amber-400 rounded-2xl mx-auto flex items-center justify-center shadow-lg">
+                <i data-lucide="lock" class="w-7 h-7"></i>
+            </div>
+            <div>
+                <h3 class="text-lg font-extrabold text-amber-200">Authorization Required</h3>
+                <p class="text-xs text-slate-400 mt-1.5">Enter security code <strong>2285</strong> to remove funds.</p>
+            </div>
+            <input type="password" id="pinInput" maxlength="4" placeholder="••••" class="w-full text-center text-3xl tracking-[0.5em] bg-slate-950 border border-amber-500/40 rounded-2xl py-3.5 text-amber-300 focus:outline-none">
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="closePinModal()" class="py-3 bg-slate-800 text-slate-300 rounded-2xl text-xs font-bold">Cancel</button>
+                <button onclick="verifyPinAndExecute()" class="py-3 bg-amber-500 text-slate-950 rounded-2xl text-xs font-extrabold shadow-lg">Authorize</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- INSUFFICIENT FUNDS ALERT MODAL -->
+    <div id="insufficientModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-xl z-60 hidden flex items-center justify-center p-6 animate-fadeIn">
+        <div class="bg-slate-900 border border-rose-500/50 w-full max-w-md rounded-3xl p-8 text-center space-y-6 shadow-2xl">
+            <div class="w-16 h-16 bg-rose-500/20 text-rose-400 rounded-3xl mx-auto flex items-center justify-center shadow-lg animate-bounce">
+                <i data-lucide="alert-triangle" class="w-8 h-8"></i>
+            </div>
+            <div>
+                <h3 class="text-xl font-black text-rose-300">Insufficient Account Balance!</h3>
+                <p id="insufficientMsg" class="text-sm text-slate-300 mt-2 leading-relaxed"></p>
+            </div>
+            <button onclick="closeInsufficientModal()" class="w-full py-3.5 bg-gradient-to-r from-rose-500 to-pink-500 text-white font-black rounded-2xl shadow-xl uppercase tracking-wider text-xs">Dismiss</button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script src="barcode.js"></script>
+</body>
+</html>
