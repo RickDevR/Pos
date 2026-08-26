@@ -1,66 +1,183 @@
-// State Management & LocalStorage Initialization
-let accounts = JSON.parse(localStorage.getItem('rf_accounts')) || [
-    { number: 'ACC-1001', name: 'Victoria Sterling', email: 'victoria@royal.com', balance: 2500.00, info: 'VIP Platinum Member', history: [{date: new Date().toLocaleString(), text: 'Account initialized with $2500.00'}] }
-];
+// Multi-User & State Management
+let operators = JSON.parse(localStorage.getItem('rf_operators')) || [];
+let currentOperator = localStorage.getItem('rf_current_operator') || null;
 
-let products = JSON.parse(localStorage.getItem('rf_products')) || [
-    { number: 'P-101', name: 'Royal Crown Elixir', price: 150.00, image: '' },
-    { number: 'P-102', name: 'Velvet Gold Cigar', price: 25.00, image: '' }
-];
-
+let accounts = [];
+let products = [];
 let currentActiveAccount = null;
-let currentCart = []; // { product, quantity, discount }
+let currentCart = [];
 let pendingAction = null;
 
-// Auth Verification on Load
+// Initialization & Auth Routing
 window.onload = function() {
-    let session = localStorage.getItem('rf_session');
-    if(session === 'unlocked') {
-        document.getElementById('authScreen').classList.add('hidden');
-        document.getElementById('mainApp').classList.remove('hidden');
-    }
-    updateDashboardStats();
-    renderAccountsList();
-    renderProductsList();
+    renderAuthScreen();
+    setupSafeKeybinds();
     lucide.createIcons();
 };
 
-function handleAuthRegister(e) {
-    e.preventDefault();
-    let user = document.getElementById('authRegUser').value.trim();
-    let pin = document.getElementById('authRegPin').value.trim();
-    if(!user || pin.length !== 4) {
-        alert('Please provide a valid username and 4-digit PIN.');
-        return;
+function renderAuthScreen() {
+    let container = document.getElementById('authFormContainer');
+    container.innerHTML = '';
+
+    if(operators.length === 0) {
+        document.getElementById('authSubtitle').innerText = 'Welcome! Create your initial operator username and 4-digit PIN.';
+        container.innerHTML = `
+            <form onsubmit="handleInitialRegister(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Username *</label>
+                    <input type="text" id="regUser" required class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner" placeholder="e.g. Administrator">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">4-Digit PIN *</label>
+                    <input type="password" id="regPin" maxlength="4" required class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm tracking-widest focus:outline-none focus:border-amber-400 shadow-inner" placeholder="••••">
+                </div>
+                <button type="submit" class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black rounded-2xl shadow-xl shadow-amber-500/25 hover:scale-[1.01] active:scale-95 transition-all uppercase tracking-wider text-xs">Create & Enter (Press Enter)</button>
+            </form>
+        `;
+    } else {
+        document.getElementById('authSubtitle').innerText = 'Select or enter your operator credentials.';
+        container.innerHTML = `
+            <form onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Select Operator</label>
+                    <select id="loginUserSelect" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 cursor-pointer">
+                        ${operators.map(op => `<option value="${op.username}">${op.username}</option>`).join('')}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">4-Digit PIN *</label>
+                    <input type="password" id="loginPin" maxlength="4" required class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm tracking-widest focus:outline-none focus:border-amber-400 shadow-inner" placeholder="••••">
+                </div>
+                <button type="submit" class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black rounded-2xl shadow-xl shadow-amber-500/25 hover:scale-[1.01] active:scale-95 transition-all uppercase tracking-wider text-xs">Login to Terminal (Press Enter)</button>
+            </form>
+        `;
     }
-    localStorage.setItem('rf_temp_user', JSON.stringify({user, pin}));
-    document.getElementById('authRegisterForm').classList.add('hidden');
-    document.getElementById('authCodeGate').classList.remove('hidden');
-    document.getElementById('authSubtitle').innerText = `Session registered for ${user}. Enter Master Override Code.`;
 }
 
-function verifyMasterCode() {
-    let code = document.getElementById('masterCodeInput').value.trim();
-    if(code !== '63552285') {
-        alert('Invalid Master Override Code! Required code: 63552285');
+function handleInitialRegister(e) {
+    e.preventDefault();
+    let username = document.getElementById('regUser').value.trim();
+    let pin = document.getElementById('regPin').value.trim();
+    if(!username || pin.length !== 4) {
+        alert('Please enter a valid username and 4-digit PIN.');
         return;
     }
-    localStorage.setItem('rf_session', 'unlocked');
+    operators.push({ username, pin });
+    localStorage.setItem('rf_operators', JSON.stringify(operators));
+    loginOperator(username);
+}
+
+function handleLogin(e) {
+    e.preventDefault();
+    let username = document.getElementById('loginUserSelect').value;
+    let pin = document.getElementById('loginPin').value.trim();
+    let op = operators.find(o => o.username === username);
+    if(!op || op.pin !== pin) {
+        alert('Invalid PIN code.');
+        return;
+    }
+    loginOperator(username);
+}
+
+function loginOperator(username) {
+    currentOperator = username;
+    localStorage.setItem('rf_current_operator', username);
+    loadUserStorage();
     document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('mainApp').classList.remove('hidden');
-    confetti({ particleCount: 150, spread: 90, origin: { y: 0.5 } });
+    document.getElementById('currentOperatorName').innerText = username;
+    confetti({ particleCount: 120, spread: 80, origin: { y: 0.5 } });
     updateDashboardStats();
     renderAccountsList();
     renderProductsList();
+    renderOperatorsAdminList();
     lucide.createIcons();
 }
 
-function saveData() {
-    localStorage.setItem('rf_accounts', JSON.stringify(accounts));
-    localStorage.setItem('rf_products', JSON.stringify(products));
+function logoutOperator() {
+    currentOperator = null;
+    localStorage.removeItem('rf_current_operator');
+    document.getElementById('mainApp').classList.add('hidden');
+    document.getElementById('authScreen').classList.remove('hidden');
+    renderAuthScreen();
+}
+
+function loadUserStorage() {
+    let keyAcc = `rf_accounts_${currentOperator}`;
+    let keyProd = `rf_products_${currentOperator}`;
+    accounts = JSON.parse(localStorage.getItem(keyAcc)) || [
+        { number: 'ACC-1001', name: 'Victoria Sterling', email: 'victoria@royal.com', balance: 2500.00, info: 'VIP Platinum Member', history: [{date: new Date().toLocaleString(), text: 'Account initialized with $2500.00'}] }
+    ];
+    products = JSON.parse(localStorage.getItem(keyProd)) || [
+        { number: 'P-101', name: 'Royal Crown Elixir', price: 150.00, image: '' }
+    ];
+}
+
+function saveUserData() {
+    if(!currentOperator) return;
+    localStorage.setItem(`rf_accounts_${currentOperator}`, JSON.stringify(accounts));
+    localStorage.setItem(`rf_products_${currentOperator}`, JSON.stringify(products));
     updateDashboardStats();
     renderAccountsList();
     renderProductsList();
+}
+
+// Safe Function-Key Keybindings Engine (No Chrome conflicts)
+function setupSafeKeybinds() {
+    window.addEventListener('keydown', (e) => {
+        let authHidden = document.getElementById('authScreen').classList.contains('hidden');
+        if(!authHidden) {
+            if(e.key === 'Enter') {
+                let form = document.querySelector('#authScreen form');
+                if(form) form.requestSubmit();
+            }
+            return;
+        }
+
+        let isModalOpen = !document.getElementById('accountModal').classList.contains('hidden');
+        let isPinOpen = !document.getElementById('pinModal').classList.contains('hidden');
+        let isInsufficientOpen = !document.getElementById('insufficientModal').classList.contains('hidden');
+
+        if(e.key === 'Escape') {
+            if(isPinOpen) closePinModal();
+            else if(isInsufficientOpen) closeInsufficientModal();
+            else if(isModalOpen) closeAccountModal();
+            return;
+        }
+
+        if(e.key === 'Enter') {
+            if(isPinOpen) { verifyPinAndExecute(); e.preventDefault(); return; }
+            if(isInsufficientOpen) { closeInsufficientModal(); e.preventDefault(); return; }
+            if(isModalOpen) {
+                let cartInput = document.getElementById('cartProdNumInput');
+                if(document.activeElement === cartInput) {
+                    addProductToCart(cartInput.value.trim());
+                    e.preventDefault();
+                    return;
+                }
+            }
+            let loadInput = document.getElementById('loadAccNumInput');
+            if(document.activeElement === loadInput) {
+                loadAccountByNumber(loadInput.value.trim());
+                e.preventDefault();
+                return;
+            }
+            let quickInput = document.getElementById('quickSearchInput');
+            if(document.activeElement === quickInput) {
+                executeQuickSearch();
+                e.preventDefault();
+                return;
+            }
+        }
+
+        // Safe Function keys
+        if(e.key === 'F1') { e.preventDefault(); switchTab('dashboard'); }
+        if(e.key === 'F2') { e.preventDefault(); switchTab('accounts'); }
+        if(e.key === 'F3') { e.preventDefault(); switchTab('createAccount'); }
+        if(e.key === 'F4') { e.preventDefault(); switchTab('products'); }
+        if(e.key === 'F5') { e.preventDefault(); switchTab('keybinds'); }
+        if(e.key === 'F6') { e.preventDefault(); switchTab('settings'); }
+    });
 }
 
 // Tab Navigation
@@ -113,7 +230,7 @@ function handleCreateAccount(e) {
         history: [{ date: new Date().toLocaleString(), text: `Account created with initial balance $${balance.toFixed(2)}` }]
     });
 
-    saveData();
+    saveUserData();
     confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
     e.target.reset();
     switchTab('accounts');
@@ -183,17 +300,13 @@ function deleteAccount(num) {
     let acc = accounts.find(a => a.number === num);
     if(confirm(`Are you sure you want to delete account "${acc ? acc.name : num}"?`)) {
         accounts = accounts.filter(a => a.number !== num);
-        saveData();
-        if(currentActiveAccount && currentActiveAccount.number === num) {
-            closeAccountModal();
-        }
+        saveUserData();
+        if(currentActiveAccount && currentActiveAccount.number === num) closeAccountModal();
     }
 }
 
 function deleteCurrentAccount() {
-    if(currentActiveAccount) {
-        deleteAccount(currentActiveAccount.number);
-    }
+    if(currentActiveAccount) deleteAccount(currentActiveAccount.number);
 }
 
 function renderModalHistory() {
@@ -209,7 +322,7 @@ function renderModalHistory() {
     });
 }
 
-// CART & POS PRODUCT MANAGEMENT
+// POS Cart & Products
 function addProductToCart(prodNum) {
     let prod = products.find(p => p.number === prodNum);
     if(!prod) {
@@ -217,11 +330,8 @@ function addProductToCart(prodNum) {
         return;
     }
     let existingItem = currentCart.find(i => i.product.number === prodNum);
-    if(existingItem) {
-        existingItem.quantity += 1;
-    } else {
-        currentCart.push({ product: prod, quantity: 1, discount: 0 });
-    }
+    if(existingItem) existingItem.quantity += 1;
+    else currentCart.push({ product: prod, quantity: 1, discount: 0 });
     document.getElementById('cartProdNumInput').value = '';
     renderCartTable();
 }
@@ -232,7 +342,7 @@ function renderCartTable() {
     let grandTotal = 0;
 
     if(currentCart.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-500">Cart is empty. Enter a product number above.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-500">Cart is empty. Enter product number above and press Enter.</td></tr>`;
         document.getElementById('cartGrandTotal').innerText = `$0.00`;
         return;
     }
@@ -287,10 +397,7 @@ function removeCartItem(idx) {
 
 function checkoutCart() {
     let grandTotal = currentCart.reduce((sum, item) => sum + ((item.product.price * item.quantity) * (1 - (item.discount / 100))), 0);
-    if(grandTotal <= 0) {
-        alert('Cart is empty.');
-        return;
-    }
+    if(grandTotal <= 0) { alert('Cart is empty.'); return; }
     if(currentActiveAccount.balance < grandTotal) {
         showInsufficientModal(`Account balance ($${currentActiveAccount.balance.toFixed(2)}) is insufficient for grand total ($${grandTotal.toFixed(2)}).`);
         return;
@@ -298,7 +405,7 @@ function checkoutCart() {
 
     currentActiveAccount.balance -= grandTotal;
     currentActiveAccount.history.push({ date: new Date().toLocaleString(), text: `Completed cart checkout (-$${grandTotal.toFixed(2)})` });
-    saveData();
+    saveUserData();
     loadAccountByNumber(currentActiveAccount.number);
     confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
 }
@@ -306,18 +413,16 @@ function checkoutCart() {
 // Financial Operations & PIN (2285)
 function promptMoneyAction(type) {
     let amt = parseFloat(document.getElementById('transAmount').value);
-    if(isNaN(amt) || amt <= 0) {
-        alert('Enter a valid amount.');
-        return;
-    }
+    if(isNaN(amt) || amt <= 0) { alert('Enter a valid amount.'); return; }
     if(type === 'remove') {
         pendingAction = { type, amount: amt };
         document.getElementById('pinInput').value = '';
         document.getElementById('pinModal').classList.remove('hidden');
+        setTimeout(() => document.getElementById('pinInput').focus(), 50);
     } else {
         currentActiveAccount.balance += amt;
         currentActiveAccount.history.push({ date: new Date().toLocaleString(), text: `Added $${amt.toFixed(2)}` });
-        saveData();
+        saveUserData();
         loadAccountByNumber(currentActiveAccount.number);
         document.getElementById('transAmount').value = '';
         confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 } });
@@ -331,10 +436,7 @@ function closePinModal() {
 
 function verifyPinAndExecute() {
     let pin = document.getElementById('pinInput').value;
-    if(pin !== '2285') {
-        alert('Invalid Security PIN! Access denied.');
-        return;
-    }
+    if(pin !== '2285') { alert('Invalid Security PIN! Access denied.'); return; }
     if(currentActiveAccount.balance < pendingAction.amount) {
         closePinModal();
         showInsufficientModal(`Cannot remove $${pendingAction.amount.toFixed(2)}. Balance is $${currentActiveAccount.balance.toFixed(2)}.`);
@@ -342,7 +444,7 @@ function verifyPinAndExecute() {
     }
     currentActiveAccount.balance -= pendingAction.amount;
     currentActiveAccount.history.push({ date: new Date().toLocaleString(), text: `Removed $${pendingAction.amount.toFixed(2)} (Authorized)` });
-    saveData();
+    saveUserData();
     loadAccountByNumber(currentActiveAccount.number);
     closePinModal();
     document.getElementById('transAmount').value = '';
@@ -351,14 +453,11 @@ function verifyPinAndExecute() {
 
 function applyDiscount() {
     let pct = parseFloat(document.getElementById('discountPercent').value);
-    if(isNaN(pct) || pct <= 0) {
-        alert('Enter valid discount percentage.');
-        return;
-    }
+    if(isNaN(pct) || pct <= 0) { alert('Enter valid discount percentage.'); return; }
     let discountVal = (currentActiveAccount.balance * (pct / 100));
     currentActiveAccount.balance -= discountVal;
     currentActiveAccount.history.push({ date: new Date().toLocaleString(), text: `Applied ${pct}% account discount (-$${discountVal.toFixed(2)})` });
-    saveData();
+    saveUserData();
     loadAccountByNumber(currentActiveAccount.number);
     document.getElementById('discountPercent').value = '';
     confetti({ particleCount: 80, spread: 70, origin: { y: 0.7 } });
@@ -384,7 +483,7 @@ function handleCreateProduct(e) {
     let reader = new FileReader();
     let saveProd = (imgData = '') => {
         products.push({ number, name, price, image: imgData });
-        saveData();
+        saveUserData();
         e.target.reset();
         alert('Product registered successfully!');
     };
@@ -401,19 +500,17 @@ function deleteProduct(num) {
     let prod = products.find(p => p.number === num);
     if(confirm(`Are you sure you want to delete product "${prod ? prod.name : num}"?`)) {
         products = products.filter(p => p.number !== num);
-        saveData();
+        saveUserData();
     }
 }
 
 function renderProductsList() {
     let container = document.getElementById('productsListContainer');
     container.innerHTML = '';
-    
     if(products.length === 0) {
         container.innerHTML = `<div class="text-center py-8 text-slate-500 text-xs">No products registered yet.</div>`;
         return;
     }
-
     products.forEach(p => {
         container.innerHTML += `
             <div class="p-4 rounded-3xl bg-slate-900/60 backdrop-blur-2xl border border-amber-500/20 flex items-center justify-between shadow-lg">
@@ -433,31 +530,84 @@ function renderProductsList() {
 // Admin Settings (PIN 6355)
 function unlockAdminSettings() {
     let pin = document.getElementById('adminPinInput').value;
-    if(pin !== '6355') {
-        alert('Invalid Admin PIN! Required code: 6355');
-        return;
-    }
+    if(pin !== '6355') { alert('Invalid Admin PIN! Required code: 6355'); return; }
     document.getElementById('settingsLockedBox').classList.add('hidden');
     document.getElementById('settingsUnlockedBox').classList.remove('hidden');
+    renderOperatorsAdminList();
 }
 
-function toggleSettingLayout() {
-    alert('Layout configuration updated.');
-}
+function renderOperatorsAdminList() {
+    let container = document.getElementById('operatorsListContainer');
+    let selectSource = document.getElementById('cloneSourceUser');
+    if(!container || !selectSource) return;
 
-function toggleSettingBlur(val) {
-    document.querySelectorAll('.backdrop-blur-2xl, .backdrop-blur-xl').forEach(el => {
-        el.className = el.className.replace(/backdrop-blur-\S+/, val === 'none' ? '' : `backdrop-blur-${val}`);
+    container.innerHTML = `<h5 class="text-xs font-bold text-slate-300 mt-4 mb-2">Existing Operators</h5>`;
+    selectSource.innerHTML = '';
+
+    operators.forEach(op => {
+        selectSource.innerHTML += `<option value="${op.username}">${op.username}</option>`;
+        container.innerHTML += `
+            <div class="p-3 bg-slate-900 rounded-xl border border-white/5 flex justify-between items-center text-xs">
+                <span class="font-bold text-amber-300">${op.username}</span>
+                ${operators.length > 1 ? `<button onclick="deleteOperator('${op.username}')" class="px-2 py-1 bg-rose-500/20 text-rose-300 rounded-lg">Delete</button>` : `<span class="text-slate-500">Master</span>`}
+            </div>
+        `;
     });
 }
 
+function adminCreateOperator() {
+    let user = document.getElementById('adminNewUser').value.trim();
+    let pin = document.getElementById('adminNewPin').value.trim();
+    if(!user || pin.length !== 4) { alert('Enter valid username and 4-digit PIN.'); return; }
+    if(operators.some(o => o.username === user)) { alert('Operator already exists.'); return; }
+    operators.push({ username: user, pin });
+    localStorage.setItem('rf_operators', JSON.stringify(operators));
+    document.getElementById('adminNewUser').value = '';
+    document.getElementById('adminNewPin').value = '';
+    renderOperatorsAdminList();
+    alert('Operator created successfully.');
+}
+
+function adminCloneOperator() {
+    let source = document.getElementById('cloneSourceUser').value;
+    let newUser = document.getElementById('cloneNewUser').value.trim();
+    let newPin = document.getElementById('cloneNewPin').value.trim();
+    if(!newUser || newPin.length !== 4) { alert('Enter valid new username and 4-digit PIN.'); return; }
+    if(operators.some(o => o.username === newUser)) { alert('Operator already exists.'); return; }
+
+    let srcAcc = localStorage.getItem(`rf_accounts_${source}`) || '[]';
+    let srcProd = localStorage.getItem(`rf_products_${source}`) || '[]';
+    localStorage.setItem(`rf_accounts_${newUser}`, srcAcc);
+    localStorage.setItem(`rf_products_${newUser}`, srcProd);
+
+    operators.push({ username: newUser, pin: newPin });
+    localStorage.setItem('rf_operators', JSON.stringify(operators));
+    document.getElementById('cloneNewUser').value = '';
+    document.getElementById('cloneNewPin').value = '';
+    renderOperatorsAdminList();
+    alert(`Successfully cloned vault data from "${source}" to "${newUser}"!`);
+}
+
+function deleteOperator(username) {
+    if(operators.length <= 1) { alert('Cannot delete last operator.'); return; }
+    if(confirm(`Delete operator "${username}"?`)) {
+        operators = operators.filter(o => o.username !== username);
+        localStorage.setItem('rf_operators', JSON.stringify(operators));
+        localStorage.removeItem(`rf_accounts_${username}`);
+        localStorage.removeItem(`rf_products_${username}`);
+        renderOperatorsAdminList();
+    }
+}
+
 function clearAllSystemData() {
-    if(confirm('Are you sure you want to wipe all local data?')) {
-        localStorage.clear();
+    if(confirm('Are you sure you want to wipe current operator storage?')) {
+        localStorage.removeItem(`rf_accounts_${currentOperator}`);
+        localStorage.removeItem(`rf_products_${currentOperator}`);
         location.reload();
     }
 }
 
 function changeTheme(themeName) {
     document.body.setAttribute('data-theme', themeName);
+    document.getElementById('themeSelector').value = themeName;
 }
