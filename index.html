@@ -1,16 +1,15 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en" class="dark" id="htmlRoot">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Royal Fleek POS Enterprise Desktop</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, touch-action: manipulation">
+    <title>Nexus Luxury Enterprise POS & Hardware Terminal v8.5</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <script src="https://js.stripe.com/v3/"></script>
     <link rel="stylesheet" href="style.css">
-    <!-- Dynamic Icon Loader -->
     <script>
         window.addEventListener('DOMContentLoaded', () => {
             const possibleIcons = ['icon.png', 'icon.jpg', 'icon.jpeg'];
@@ -31,35 +30,35 @@
         });
     </script>
 </head>
-<body class="bg-slate-950 text-slate-100 font-sans antialiased overflow-hidden select-none">
+<body class="bg-slate-950 text-slate-100 font-sans antialiased overflow-x-hidden select-none transition-colors duration-500 touch-manipulation" id="bodyRoot">
 
-    <!-- CINEMATIC SPLASH LOADING SCREEN -->
+    <!-- EXTENDED CINEMATIC LUXURY SPLASH LOADING SCREEN -->
     <div id="appLoadingSplash" class="fixed inset-0 z-50 bg-slate-950 flex flex-col items-center justify-center transition-all duration-1000">
         <div class="relative flex flex-col items-center space-y-6 max-w-md w-full px-6 text-center">
             <div class="relative">
-                <div class="absolute -inset-4 bg-gradient-to-r from-amber-500 to-yellow-400 rounded-3xl blur-xl opacity-40 animate-pulse"></div>
-                <img id="splashAppIcon" src="icon.png" class="relative w-24 h-24 object-contain rounded-3xl border-2 border-amber-500/50 shadow-2xl bg-slate-900" onerror="this.style.display='none'">
+                <div class="absolute -inset-4 bg-gradient-to-r from-amber-500 to-indigo-600 rounded-3xl blur-2xl opacity-60 animate-pulse"></div>
+                <img id="splashAppIcon" src="icon.png" class="relative w-28 h-28 object-contain rounded-3xl border-2 border-amber-500/50 shadow-2xl bg-slate-900" onerror="this.style.display='none'">
             </div>
             <div>
-                <h1 class="text-2xl font-black bg-gradient-to-r from-amber-400 via-yellow-200 to-amber-500 bg-clip-text text-transparent uppercase tracking-wider">Royal Fleek POS</h1>
-                <p class="text-xs text-amber-300/80 font-mono tracking-widest mt-1">Enterprise Cloud & Secure Auth v5.1</p>
+                <h1 class="text-2xl font-black bg-gradient-to-r from-amber-400 via-yellow-100 to-indigo-400 bg-clip-text text-transparent uppercase tracking-wider">Nexus Luxury Enterprise POS</h1>
+                <p class="text-xs text-amber-300/80 font-mono tracking-widest mt-1">Universal Luxury Responsive Engine v8.5</p>
             </div>
-            <div class="w-full bg-slate-900 border border-amber-500/20 rounded-full h-2.5 p-0.5 overflow-hidden shadow-inner">
-                <div id="splashProgressBar" class="bg-gradient-to-r from-amber-500 to-yellow-400 h-full rounded-full transition-all duration-3000 w-0"></div>
+            <div class="w-full bg-slate-900 border border-amber-500/20 rounded-full h-3 p-0.5 overflow-hidden shadow-inner">
+                <div id="splashProgressBar" class="bg-gradient-to-r from-amber-500 to-indigo-600 h-full rounded-full transition-all duration-[4200ms] w-0"></div>
             </div>
-            <div id="loadingTipText" class="text-xs text-slate-400 italic min-h-[2rem] transition-opacity duration-500">Connecting to Firebase Realtime Cloud Database...</div>
+            <div id="loadingTipText" class="text-xs text-slate-400 italic min-h-[2rem] transition-opacity duration-500">Initializing secure cloud database & USB barcode scanners...</div>
         </div>
     </div>
 
     <!-- AUTHENTICATION SCREEN -->
-    <div id="authScreen" class="hidden fixed inset-0 z-40 bg-slate-950 flex items-center justify-center p-6 pointer-events-auto">
-        <div class="w-full max-w-md p-8 rounded-3xl bg-slate-900/95 backdrop-blur-2xl border border-amber-500/30 shadow-2xl relative overflow-hidden pointer-events-auto">
+    <div id="authScreen" class="hidden fixed inset-0 z-40 bg-slate-950 flex items-center justify-center p-4 sm:p-6 pointer-events-auto">
+        <div class="w-full max-w-md p-6 sm:p-8 rounded-3xl bg-slate-900/95 backdrop-blur-2xl border border-amber-500/30 shadow-2xl relative overflow-hidden pointer-events-auto">
             <div class="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
             <div class="flex items-center gap-4 mb-6">
                 <img src="icon.png" class="w-12 h-12 rounded-2xl object-contain border border-amber-500/40" onerror="this.style.display='none'">
                 <div>
                     <h2 class="text-xl font-black text-slate-100">Enterprise Access</h2>
-                    <p class="text-xs text-amber-400">Authenticate as Main Operator or Store Worker.</p>
+                    <p class="text-xs text-amber-400">Authenticate as Main Owner or Staff Worker.</p>
                 </div>
             </div>
             <div id="authFormContainer" class="pointer-events-auto"></div>
@@ -67,65 +66,82 @@
     </div>
 
     <!-- MAIN POS APPLICATION CONTAINER -->
-    <div id="mainApp" class="hidden flex h-screen w-screen overflow-hidden pointer-events-auto">
+    <div id="mainApp" class="hidden flex flex-col lg:flex-row h-screen w-screen overflow-hidden pointer-events-auto">
         
+        <!-- MOBILE TOPBAR & HAMBURGER -->
+        <div class="lg:hidden flex items-center justify-between bg-slate-900 border-b border-amber-500/20 p-4 z-30">
+            <div class="flex items-center gap-3">
+                <img src="icon.png" class="w-8 h-8 rounded-lg object-contain border border-amber-500/40" onerror="this.style.display='none'">
+                <span class="font-black text-sm text-slate-100">Nexus Luxury POS</span>
+            </div>
+            <button onclick="toggleMobileMenu()" class="p-2 bg-amber-500/20 text-amber-300 rounded-xl"><i data-lucide="menu" class="w-5 h-5"></i></button>
+        </div>
+
         <!-- SIDEBAR NAVIGATION -->
-        <aside class="w-72 bg-slate-900/95 border-r border-amber-500/20 flex flex-col justify-between p-6 select-none z-20 shadow-2xl pointer-events-auto">
+        <aside id="sidebarNav" class="fixed lg:static inset-y-0 left-0 w-72 bg-slate-900/95 lg:bg-slate-900/95 border-r border-amber-500/20 flex flex-col justify-between p-6 select-none z-30 shadow-2xl pointer-events-auto transition-transform duration-300 -translate-x-full lg:translate-x-0">
             <div>
-                <div class="flex items-center gap-3 mb-8 px-2">
-                    <img src="icon.png" class="w-10 h-10 object-contain rounded-xl border border-amber-500/40" onerror="this.style.display='none'">
-                    <div>
-                        <h2 class="font-black text-sm text-slate-100 uppercase tracking-wider">Royal Fleek</h2>
-                        <p class="text-[10px] text-amber-400 font-mono">Enterprise v5.1</p>
+                <div class="flex items-center justify-between mb-6 px-2">
+                    <div class="flex items-center gap-3">
+                        <img src="icon.png" class="w-10 h-10 object-contain rounded-xl border border-amber-500/40" onerror="this.style.display='none'">
+                        <div>
+                            <h2 class="font-black text-sm text-slate-100 uppercase tracking-wider">Nexus Luxury</h2>
+                            <p class="text-[10px] text-amber-400 font-mono">v8.5 Enterprise</p>
+                        </div>
                     </div>
+                    <button onclick="toggleMobileMenu()" class="lg:hidden p-1 text-slate-400"><i data-lucide="x" class="w-5 h-5"></i></button>
                 </div>
 
-                <nav class="space-y-1.5 overflow-y-auto max-h-[calc(100vh-240px)] pr-1 custom-scrollbar">
-                    <button onclick="switchTab('dashboard')" data-tab="dashboard" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-xs transition-all text-amber-300 bg-gradient-to-r from-amber-500/25 to-amber-500/5 border-l-4 border-amber-400 shadow-lg scale-[1.02] pointer-events-auto"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard (F1)</button>
-                    <button onclick="switchTab('accounts')" data-tab="accounts" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-xs transition-all text-slate-400 hover:text-slate-200 hover:bg-white/5 pointer-events-auto"><i data-lucide="users" class="w-4 h-4"></i> Accounts (F2)</button>
-                    <button onclick="switchTab('createAccount')" data-tab="createAccount" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-xs transition-all text-slate-400 hover:text-slate-200 hover:bg-white/5 pointer-events-auto"><i data-lucide="user-plus" class="w-4 h-4"></i> New Account (F3)</button>
-                    <button onclick="switchTab('products')" data-tab="products" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-xs transition-all text-slate-400 hover:text-slate-200 hover:bg-white/5 pointer-events-auto"><i data-lucide="package" class="w-4 h-4"></i> Products & Barcodes (F4)</button>
-                    <button onclick="switchTab('coupons')" data-tab="coupons" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-xs transition-all text-slate-400 hover:text-slate-200 hover:bg-white/5 pointer-events-auto"><i data-lucide="tag" class="w-4 h-4"></i> Coupons (F5)</button>
-                    <button onclick="switchTab('giftcards')" data-tab="giftcards" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-xs transition-all text-slate-400 hover:text-slate-200 hover:bg-white/5 pointer-events-auto"><i data-lucide="credit-card" class="w-4 h-4"></i> Gift Cards (F6)</button>
-                    <button onclick="switchTab('payroll')" data-tab="payroll" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-xs transition-all text-slate-400 hover:text-slate-200 hover:bg-white/5 pointer-events-auto"><i data-lucide="briefcase" class="w-4 h-4"></i> Employees & Payroll (F7)</button>
-                    <button onclick="switchTab('returns')" data-tab="returns" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-xs transition-all text-slate-400 hover:text-slate-200 hover:bg-white/5 pointer-events-auto"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> Returns & Refunds (F8)</button>
-                    <button onclick="switchTab('audit')" data-tab="audit" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-xs transition-all text-slate-400 hover:text-slate-200 hover:bg-white/5 pointer-events-auto"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Shift Audit (X/Z Report)</button>
-                    <button onclick="switchTab('settings')" data-tab="settings" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-xs transition-all text-slate-400 hover:text-slate-200 hover:bg-white/5 pointer-events-auto"><i data-lucide="settings" class="w-4 h-4"></i> Admin Settings (F9)</button>
+                <nav class="space-y-1 overflow-y-auto max-h-[calc(100vh-220px)] pr-1 custom-scrollbar">
+                    <button onclick="switchTab('dashboard')" data-tab="dashboard" class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl font-bold text-xs transition-all text-amber-300 bg-gradient-to-r from-amber-500/25 to-amber-500/5 border-l-4 border-amber-400 shadow-lg scale-[1.02] pointer-events-auto"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard (F1)</button>
+                    <button onclick="switchTab('accounts')" data-tab="accounts" class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl font-bold text-xs transition-all text-slate-400 hover:text-slate-200 hover:bg-white/5 pointer-events-auto"><i data-lucide="users" class="w-4 h-4"></i> Accounts (F2)</button>
+                    <button onclick="switchTab('createAccount')" data-tab="createAccount" class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl font-bold text-xs transition-all text-slate-400 hover:text-slate-200 hover:bg-white/5 pointer-events-auto"><i data-lucide="user-plus" class="w-4 h-4"></i> New Account (F3)</button>
+                    <button onclick="switchTab('products')" data-tab="products" class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl font-bold text-xs transition-all text-slate-400 hover:text-slate-200 hover:bg-white/5 pointer-events-auto"><i data-lucide="package" class="w-4 h-4"></i> Products & Barcodes (F4)</button>
+                    <button onclick="switchTab('coupons')" data-tab="coupons" class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl font-bold text-xs transition-all text-slate-400 hover:text-slate-200 hover:bg-white/5 pointer-events-auto"><i data-lucide="tag" class="w-4 h-4"></i> Coupons (F5)</button>
+                    <button onclick="switchTab('giftcards')" data-tab="giftcards" class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl font-bold text-xs transition-all text-slate-400 hover:text-slate-200 hover:bg-white/5 pointer-events-auto"><i data-lucide="credit-card" class="w-4 h-4"></i> Gift Cards (F6)</button>
+                    <button onclick="switchTab('payroll')" data-tab="payroll" class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl font-bold text-xs transition-all text-slate-400 hover:text-slate-200 hover:bg-white/5 pointer-events-auto"><i data-lucide="briefcase" class="w-4 h-4"></i> Employees & Cashier IDs (F7)</button>
+                    <button onclick="switchTab('returns')" data-tab="returns" class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl font-bold text-xs transition-all text-slate-400 hover:text-slate-200 hover:bg-white/5 pointer-events-auto"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> Returns & Refunds (F8)</button>
+                    
+                    <button onclick="switchTab('inventoryMatrix')" data-tab="inventoryMatrix" class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl font-bold text-xs transition-all text-slate-400 hover:text-slate-200 hover:bg-white/5 pointer-events-auto"><i data-lucide="layers" class="w-4 h-4 text-amber-400"></i> Inventory Matrix (F10)</button>
+                    <button onclick="switchTab('crmAnalytics')" data-tab="crmAnalytics" class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl font-bold text-xs transition-all text-slate-400 hover:text-slate-200 hover:bg-white/5 pointer-events-auto"><i data-lucide="bar-chart-3" class="w-4 h-4 text-amber-400"></i> Customer CRM (F11)</button>
+                    <button onclick="switchTab('timeclock')" data-tab="timeclock" class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl font-bold text-xs transition-all text-slate-400 hover:text-slate-200 hover:bg-white/5 pointer-events-auto"><i data-lucide="clock" class="w-4 h-4 text-amber-400"></i> Timeclock & Shift (F12)</button>
+
+                    <button onclick="switchTab('audit')" data-tab="audit" class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl font-bold text-xs transition-all text-slate-400 hover:text-slate-200 hover:bg-white/5 pointer-events-auto"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Shift Audit (X/Z Report)</button>
+                    <button onclick="switchTab('settings')" data-tab="settings" class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl font-bold text-xs transition-all text-slate-400 hover:text-slate-200 hover:bg-white/5 pointer-events-auto"><i data-lucide="settings" class="w-4 h-4"></i> Admin Settings (F9)</button>
                 </nav>
             </div>
 
             <div class="pt-4 border-t border-white/5 flex items-center justify-between">
                 <div>
-                    <p class="text-xs font-bold text-slate-200" id="currentOperatorName">Operator</p>
-                    <p class="text-[10px] text-amber-400">Cloud Synced & Secure</p>
+                    <p class="text-xs font-bold text-slate-200 truncate max-w-[140px]" id="currentOperatorName">Operator</p>
+                    <p class="text-[10px] text-amber-400">USB Scanner Active</p>
                 </div>
                 <button onclick="logoutOperator()" class="p-2.5 bg-rose-500/20 text-rose-300 rounded-xl hover:bg-rose-500/30 transition-all pointer-events-auto" title="Logout"><i data-lucide="log-out" class="w-4 h-4"></i></button>
             </div>
         </aside>
 
         <!-- MAIN CONTENT AREA -->
-        <main class="flex-1 overflow-y-auto bg-slate-950 p-8 relative custom-scrollbar pointer-events-auto">
+        <main class="flex-1 overflow-y-auto bg-slate-950 p-4 sm:p-8 relative custom-scrollbar pointer-events-auto" id="mainContentArea">
             
             <!-- TAB 1: DASHBOARD -->
             <div id="tab-dashboard" class="tab-content space-y-6 pointer-events-auto">
-                <div class="flex justify-between items-center bg-slate-900/60 p-6 rounded-3xl border border-amber-500/20 backdrop-blur-xl shadow-xl">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/60 p-6 rounded-3xl border border-amber-500/20 backdrop-blur-xl shadow-xl">
                     <div>
-                        <h2 class="text-2xl font-black text-slate-100">Enterprise Cloud Dashboard</h2>
-                        <p class="text-xs text-slate-400 mt-1">Universal store analytics and quick operational search.</p>
+                        <h2 class="text-xl sm:text-2xl font-black text-slate-100">Luxury Enterprise Dashboard</h2>
+                        <p class="text-xs text-slate-400 mt-1">Universal luxury analytics, USB barcode scanning, and Stripe live gateway status.</p>
                     </div>
-                    <div class="flex gap-3 items-center">
+                    <div class="flex flex-wrap gap-3 items-center w-full sm:w-auto">
                         <select id="globalCurrencySelect" onchange="changeCurrency(this.value)" class="bg-slate-950 border border-amber-500/30 rounded-2xl px-3 py-2.5 text-xs text-amber-300 font-bold focus:outline-none cursor-pointer pointer-events-auto">
                             <option value="USD">USD ($)</option>
                             <option value="EUR">EUR (€)</option>
                             <option value="GBP">GBP (£)</option>
                             <option value="CAD">CAD (CA$)</option>
                         </select>
-                        <input type="text" id="quickSearchInput" placeholder="Quick Search Account # / Name..." class="bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-400 w-64 shadow-inner pointer-events-auto">
-                        <button onclick="executeQuickSearch()" class="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black rounded-2xl text-xs uppercase tracking-wider shadow-lg hover:scale-105 transition-all pointer-events-auto">Search</button>
+                        <input type="text" id="quickSearchInput" placeholder="Quick Search Account..." class="bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-400 w-full sm:w-64 shadow-inner pointer-events-auto">
+                        <button onclick="executeQuickSearch()" class="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-amber-500 to-indigo-600 text-slate-950 font-black rounded-2xl text-xs uppercase tracking-wider shadow-lg hover:scale-105 transition-all pointer-events-auto">Search</button>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-4 gap-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                     <div class="p-6 rounded-3xl bg-slate-900/60 border border-amber-500/20 shadow-xl">
                         <p class="text-xs font-bold uppercase tracking-wider text-amber-400">Total Accounts</p>
                         <h3 id="statTotalAccounts" class="text-3xl font-black text-slate-100 mt-2">0</h3>
@@ -135,78 +151,89 @@
                         <h3 id="statTotalCapital" class="text-3xl font-black text-emerald-400 mt-2">$0.00</h3>
                     </div>
                     <div class="p-6 rounded-3xl bg-slate-900/60 border border-amber-500/20 shadow-xl">
-                        <p class="text-xs font-bold uppercase tracking-wider text-cyan-400">Registered Products</p>
+                        <p class="text-xs font-bold uppercase tracking-wider text-sky-400">Registered Products</p>
                         <h3 id="statTotalProducts" class="text-3xl font-black text-slate-100 mt-2">0</h3>
                     </div>
                     <div class="p-6 rounded-3xl bg-slate-900/60 border border-amber-500/20 shadow-xl">
-                        <p class="text-xs font-bold uppercase tracking-wider text-purple-400">Active Coupons & GC</p>
-                        <h3 id="statTotalCoupons" class="text-3xl font-black text-slate-100 mt-2">0</h3>
+                        <p class="text-xs font-bold uppercase tracking-wider text-indigo-400">USB Barcode Scanner</p>
+                        <h3 class="text-xl font-black text-emerald-400 mt-2 flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span> Active (HID)</h3>
                     </div>
                 </div>
             </div>
 
             <!-- TAB 2: ACCOUNTS -->
             <div id="tab-accounts" class="tab-content hidden space-y-6 pointer-events-auto">
-                <div class="flex justify-between items-center bg-slate-900/60 p-6 rounded-3xl border border-amber-500/20 backdrop-blur-xl shadow-xl">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/60 p-6 rounded-3xl border border-amber-500/20 backdrop-blur-xl shadow-xl">
                     <div>
-                        <h2 class="text-2xl font-black text-slate-100">Customer Accounts Registry</h2>
-                        <p class="text-xs text-slate-400 mt-1">Search, load, edit, or manage customer credit balances and cards on file.</p>
+                        <h2 class="text-xl sm:text-2xl font-black text-slate-100">Customer Accounts Registry</h2>
+                        <p class="text-xs text-slate-400 mt-1">Search, load, edit, or manage customer credit balances and saved credit cards.</p>
                     </div>
-                    <div class="flex gap-3">
-                        <input type="text" id="filterAccountInput" oninput="filterAccountList(this.value)" placeholder="Filter accounts..." class="bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-400 w-64 shadow-inner pointer-events-auto">
-                        <button onclick="switchTab('createAccount')" class="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black rounded-2xl text-xs uppercase tracking-wider shadow-lg pointer-events-auto">+ New Account</button>
+                    <div class="flex flex-wrap gap-3 w-full sm:w-auto">
+                        <input type="text" id="filterAccountInput" oninput="filterAccountList(this.value)" placeholder="Filter accounts..." class="bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-400 w-full sm:w-64 shadow-inner pointer-events-auto">
+                        <button onclick="switchTab('createAccount')" class="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-amber-500 to-indigo-600 text-slate-950 font-black rounded-2xl text-xs uppercase tracking-wider shadow-lg pointer-events-auto">+ New Account</button>
                     </div>
                 </div>
-                <div id="accountsGrid" class="grid grid-cols-3 gap-6 pointer-events-auto"></div>
+                <div id="accountsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pointer-events-auto"></div>
             </div>
 
             <!-- TAB 3: CREATE / EDIT ACCOUNT -->
             <div id="tab-createAccount" class="tab-content hidden space-y-6 pointer-events-auto">
-                <div class="max-w-2xl mx-auto p-8 rounded-3xl bg-slate-900/95 border border-amber-500/30 shadow-2xl pointer-events-auto">
-                    <h2 id="accountFormTitle" class="text-2xl font-black text-slate-100 mb-2">Create Customer Account</h2>
-                    <p class="text-xs text-slate-400 mb-6">Register or edit a client profile with secure credit card on file.</p>
+                <div class="max-w-2xl mx-auto p-6 sm:p-8 rounded-3xl bg-slate-900/95 border border-amber-500/30 shadow-2xl pointer-events-auto">
+                    <h2 id="accountFormTitle" class="text-xl sm:text-2xl font-black text-slate-100 mb-2">Create Customer Account</h2>
+                    <p class="text-xs text-slate-400 mb-6">Scan or auto-generate barcode ID for customer account.</p>
                     <form onsubmit="handleAccountFormSubmit(event)" class="space-y-4 pointer-events-auto">
                         <input type="hidden" id="editAccountOldNum" value="">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Account # *</label>
-                                <input type="text" id="newAccNumber" required value="ACC-1002" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto">
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Account Barcode ID # *</label>
+                            <div class="flex gap-2 mb-2">
+                                <input type="text" id="newAccNumber" required oninput="updateFormBarcodePreview('newAccNumber', 'accBarcodePreviewSvg')" class="flex-1 bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto">
+                                <button type="button" onclick="autoGenerateFieldCode('newAccNumber', 'accBarcodePreviewSvg', 'ACC')" class="px-4 py-3 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-2xl text-xs font-bold pointer-events-auto">Auto-Generate</button>
+                                <button type="button" onclick="openCameraScannerModal('newAccNumber')" class="px-4 py-3 bg-slate-800 text-amber-300 rounded-2xl text-xs font-bold pointer-events-auto" title="Scan with Camera"><i data-lucide="camera" class="w-4 h-4"></i></button>
                             </div>
+                            <div class="p-3 bg-slate-950 rounded-2xl border border-white/5 flex flex-col items-center justify-center">
+                                <p class="text-[10px] text-slate-400 uppercase tracking-widest mb-1">Live Barcode Preview</p>
+                                <svg id="accBarcodePreviewSvg"></svg>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Client Full Name *</label>
                                 <input type="text" id="newAccName" required class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto" placeholder="Alexander Hamilton">
                             </div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Email Address *</label>
-                                <input type="email" id="newAccEmail" required class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto" placeholder="alex@treasury.gov">
+                                <input type="email" id="newAccEmail" required class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto" placeholder="alex@nexus.com">
                             </div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Initial Balance ($) *</label>
                                 <input type="number" step="0.01" id="newAccBalance" required value="1000.00" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto">
                             </div>
-                        </div>
-                        <div class="grid grid-cols-3 gap-4">
                             <div>
-                                <label class="block text-xs font-bold uppercase tracking-wider text-cyan-300 mb-1">Card Number on File</label>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-sky-300 mb-1">Card Status</label>
+                                <select id="newCardStatus" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-2 py-3 text-slate-200 text-xs focus:outline-none pointer-events-auto">
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-sky-300 mb-1">Card Number on File</label>
                                 <input type="text" id="newCardNum" placeholder="4242 •••• •••• 4242" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold uppercase tracking-wider text-cyan-300 mb-1">Exp Date</label>
-                                <input type="text" id="newCardExp" placeholder="12/28" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold uppercase tracking-wider text-cyan-300 mb-1">CVC</label>
-                                <input type="text" id="newCardCvc" placeholder="123" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto">
+                                <label class="block text-xs font-bold uppercase tracking-wider text-sky-300 mb-1">Card Balance ($)</label>
+                                <input type="number" step="0.01" id="newCardBal" value="500.00" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto">
                             </div>
                         </div>
                         <div>
                             <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Client Notes / VIP Info</label>
-                            <textarea id="newAccInfo" rows="3" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto" placeholder="VIP Member"></textarea>
+                            <textarea id="newAccInfo" rows="2" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto" placeholder="VIP Member"></textarea>
                         </div>
                         <div class="flex gap-2">
-                            <button type="submit" id="accountSubmitBtn" class="flex-1 py-4 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black rounded-2xl shadow-xl uppercase tracking-wider text-xs pointer-events-auto">Save Account</button>
+                            <button type="submit" id="accountSubmitBtn" class="flex-1 py-4 bg-gradient-to-r from-amber-500 to-indigo-600 text-slate-950 font-black rounded-2xl shadow-xl uppercase tracking-wider text-xs pointer-events-auto">Save Account</button>
                             <button type="button" id="accountCancelBtn" onclick="resetAccountForm()" class="hidden px-6 py-4 bg-slate-800 text-slate-300 font-bold rounded-2xl text-xs pointer-events-auto">Cancel</button>
                         </div>
                     </form>
@@ -215,21 +242,29 @@
 
             <!-- TAB 4: PRODUCTS & BARCODES -->
             <div id="tab-products" class="tab-content hidden space-y-6 pointer-events-auto">
-                <div class="grid grid-cols-2 gap-8">
-                    <div class="p-8 rounded-3xl bg-slate-900/95 border border-amber-500/30 shadow-2xl pointer-events-auto">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="p-6 sm:p-8 rounded-3xl bg-slate-900/95 border border-amber-500/30 shadow-2xl pointer-events-auto">
                         <h2 id="productFormTitle" class="text-xl font-black text-slate-100 mb-2">Register / Edit Product</h2>
-                        <p class="text-xs text-slate-400 mb-6">Create inventory items and generate scan-ready barcodes.</p>
+                        <p class="text-xs text-slate-400 mb-6">Scan or auto-generate barcode for product SKU.</p>
                         <form onsubmit="handleProductFormSubmit(event)" class="space-y-4 pointer-events-auto">
                             <input type="hidden" id="editProductOldNum" value="">
                             <div>
-                                <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Product Item # *</label>
-                                <input type="text" id="prodNumber" required value="P-102" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto">
+                                <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Product SKU / Barcode *</label>
+                                <div class="flex gap-2 mb-2">
+                                    <input type="text" id="prodNumber" required oninput="updateFormBarcodePreview('prodNumber', 'prodBarcodePreviewSvg')" class="flex-1 bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto">
+                                    <button type="button" onclick="autoGenerateFieldCode('prodNumber', 'prodBarcodePreviewSvg', 'P')" class="px-4 py-3 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-2xl text-xs font-bold pointer-events-auto">Auto-Generate</button>
+                                    <button type="button" onclick="openCameraScannerModal('prodNumber')" class="px-4 py-3 bg-slate-800 text-amber-300 rounded-2xl text-xs font-bold pointer-events-auto" title="Scan with Camera"><i data-lucide="camera" class="w-4 h-4"></i></button>
+                                </div>
+                                <div class="p-3 bg-slate-950 rounded-2xl border border-white/5 flex flex-col items-center justify-center">
+                                    <p class="text-[10px] text-slate-400 uppercase tracking-widest mb-1">Live Barcode Preview</p>
+                                    <svg id="prodBarcodePreviewSvg"></svg>
+                                </div>
                             </div>
                             <div>
                                 <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Product Name *</label>
-                                <input type="text" id="prodName" required class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto" placeholder="Royal Velvet Potion">
+                                <input type="text" id="prodName" required class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto" placeholder="Nexus Luxury Potion">
                             </div>
-                            <div class="grid grid-cols-2 gap-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Price ($) *</label>
                                     <input type="number" step="0.01" id="prodPrice" required value="49.99" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto">
@@ -244,7 +279,7 @@
                                 <input type="file" id="prodImageFile" accept="image/*" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-400 text-xs file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-amber-500 file:text-slate-950 pointer-events-auto">
                             </div>
                             <div class="flex gap-2">
-                                <button type="submit" id="productSubmitBtn" class="flex-1 py-4 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black rounded-2xl shadow-xl uppercase tracking-wider text-xs pointer-events-auto">Save Product</button>
+                                <button type="submit" id="productSubmitBtn" class="flex-1 py-4 bg-gradient-to-r from-amber-500 to-indigo-600 text-slate-950 font-black rounded-2xl shadow-xl uppercase tracking-wider text-xs pointer-events-auto">Save Product</button>
                                 <button type="button" id="productCancelBtn" onclick="resetProductForm()" class="hidden px-6 py-4 bg-slate-800 text-slate-300 font-bold rounded-2xl text-xs pointer-events-auto">Cancel</button>
                             </div>
                         </form>
@@ -258,15 +293,15 @@
 
             <!-- TAB 5: COUPONS -->
             <div id="tab-coupons" class="tab-content hidden space-y-6 pointer-events-auto">
-                <div class="grid grid-cols-2 gap-8">
-                    <div class="p-8 rounded-3xl bg-slate-900/95 border border-amber-500/30 shadow-2xl pointer-events-auto">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="p-6 sm:p-8 rounded-3xl bg-slate-900/95 border border-amber-500/30 shadow-2xl pointer-events-auto">
                         <h2 id="couponFormTitle" class="text-xl font-black text-slate-100 mb-2">Create / Edit Discount Coupon</h2>
                         <p class="text-xs text-slate-400 mb-6">Issue custom percentage discount codes.</p>
                         <form onsubmit="handleCouponFormSubmit(event)" class="space-y-4 pointer-events-auto">
                             <input type="hidden" id="editCouponOldCode" value="">
                             <div>
                                 <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Coupon Code *</label>
-                                <input type="text" id="couponCode" required value="COUPON-20" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto">
+                                <input type="text" id="couponCode" required class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto">
                             </div>
                             <div>
                                 <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Coupon Name *</label>
@@ -277,7 +312,7 @@
                                 <input type="number" min="1" max="100" id="couponPercent" required value="20" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto">
                             </div>
                             <div class="flex gap-2">
-                                <button type="submit" id="couponSubmitBtn" class="flex-1 py-4 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black rounded-2xl shadow-xl uppercase tracking-wider text-xs pointer-events-auto">Save Coupon</button>
+                                <button type="submit" id="couponSubmitBtn" class="flex-1 py-4 bg-gradient-to-r from-amber-500 to-indigo-600 text-slate-950 font-black rounded-2xl shadow-xl uppercase tracking-wider text-xs pointer-events-auto">Save Coupon</button>
                                 <button type="button" id="couponCancelBtn" onclick="resetCouponForm()" class="hidden px-6 py-4 bg-slate-800 text-slate-300 font-bold rounded-2xl text-xs pointer-events-auto">Cancel</button>
                             </div>
                         </form>
@@ -291,15 +326,23 @@
 
             <!-- TAB 6: GIFT CARDS -->
             <div id="tab-giftcards" class="tab-content hidden space-y-6 pointer-events-auto">
-                <div class="grid grid-cols-2 gap-8">
-                    <div class="p-8 rounded-3xl bg-slate-900/95 border border-amber-500/30 shadow-2xl pointer-events-auto">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="p-6 sm:p-8 rounded-3xl bg-slate-900/95 border border-amber-500/30 shadow-2xl pointer-events-auto">
                         <h2 id="gcFormTitle" class="text-xl font-black text-slate-100 mb-2">Issue / Edit Gift Card</h2>
-                        <p class="text-xs text-slate-400 mb-6">Create redeemable store gift cards.</p>
+                        <p class="text-xs text-slate-400 mb-6">Scan or auto-generate barcode for store gift card.</p>
                         <form onsubmit="handleGCFormSubmit(event)" class="space-y-4 pointer-events-auto">
                             <input type="hidden" id="editGCOldCode" value="">
                             <div>
                                 <label class="block text-xs font-bold uppercase tracking-wider text-emerald-300 mb-1">Gift Card Code *</label>
-                                <input type="text" id="gcCode" required value="GC-750" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto">
+                                <div class="flex gap-2 mb-2">
+                                    <input type="text" id="gcCode" required oninput="updateFormBarcodePreview('gcCode', 'gcBarcodePreviewSvg')" class="flex-1 bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto">
+                                    <button type="button" onclick="autoGenerateFieldCode('gcCode', 'gcBarcodePreviewSvg', 'GC')" class="px-4 py-3 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-2xl text-xs font-bold pointer-events-auto">Auto-Generate</button>
+                                    <button type="button" onclick="openCameraScannerModal('gcCode')" class="px-4 py-3 bg-slate-800 text-emerald-300 rounded-2xl text-xs font-bold pointer-events-auto" title="Scan with Camera"><i data-lucide="camera" class="w-4 h-4"></i></button>
+                                </div>
+                                <div class="p-3 bg-slate-950 rounded-2xl border border-white/5 flex flex-col items-center justify-center">
+                                    <p class="text-[10px] text-slate-400 uppercase tracking-widest mb-1">Live Barcode Preview</p>
+                                    <svg id="gcBarcodePreviewSvg"></svg>
+                                </div>
                             </div>
                             <div>
                                 <label class="block text-xs font-bold uppercase tracking-wider text-emerald-300 mb-1">Recipient Name *</label>
@@ -322,44 +365,67 @@
                 </div>
             </div>
 
-            <!-- TAB 7: EMPLOYEES & PAYROLL -->
+            <!-- TAB 7: EMPLOYEES & CASHIER ID BADGES -->
             <div id="tab-payroll" class="tab-content hidden space-y-6 pointer-events-auto">
-                <div class="grid grid-cols-2 gap-8">
-                    <div class="p-8 rounded-3xl bg-slate-900/95 border border-amber-500/30 shadow-2xl pointer-events-auto">
-                        <h2 id="empFormTitle" class="text-xl font-black text-slate-100 mb-2">Register / Edit Employee</h2>
-                        <p class="text-xs text-slate-400 mb-6">Add staff members and compensation rates.</p>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="p-6 sm:p-8 rounded-3xl bg-slate-900/95 border border-amber-500/30 shadow-2xl pointer-events-auto">
+                        <h2 id="empFormTitle" class="text-xl font-black text-slate-100 mb-2">Register Cashier & ID Badge</h2>
+                        <p class="text-xs text-slate-400 mb-6">Auto-generate cashier ID/password, upload photo, and print ID badge barcode.</p>
                         <form onsubmit="handleEmployeeFormSubmit(event)" class="space-y-4 pointer-events-auto">
                             <input type="hidden" id="editEmpOldName" value="">
                             <div>
-                                <label class="block text-xs font-bold uppercase tracking-wider text-cyan-300 mb-1">Employee Name *</label>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-sky-300 mb-1">Cashier Full Name *</label>
                                 <input type="text" id="empName" required class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto" placeholder="John Cashier">
                             </div>
-                            <div>
-                                <label class="block text-xs font-bold uppercase tracking-wider text-cyan-300 mb-1">Job Role *</label>
-                                <input type="text" id="empRole" required class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto" placeholder="Lead Cashier">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-bold uppercase tracking-wider text-sky-300 mb-1">Job Role *</label>
+                                    <input type="text" id="empRole" required value="Cashier" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold uppercase tracking-wider text-sky-300 mb-1">Hourly Rate ($/hr) *</label>
+                                    <input type="number" step="0.01" id="empRate" required value="22.50" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-bold uppercase tracking-wider text-sky-300 mb-1">Cashier ID Barcode *</label>
+                                    <div class="flex gap-1">
+                                        <input type="text" id="empBarcode" required oninput="updateFormBarcodePreview('empBarcode', 'cashierBarcodePreviewSvg')" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-3 py-3 text-slate-200 text-xs font-mono focus:outline-none">
+                                        <button type="button" onclick="autoGenerateFieldCode('empBarcode', 'cashierBarcodePreviewSvg', 'EMP')" class="px-3 py-2 bg-sky-500/20 text-sky-300 rounded-xl text-[10px] font-bold">New ID</button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold uppercase tracking-wider text-sky-300 mb-1">Cashier PIN / Password *</label>
+                                    <input type="text" id="empPassword" required class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm font-mono focus:outline-none">
+                                </div>
+                            </div>
+                            <div class="p-3 bg-slate-950 rounded-2xl border border-white/5 flex flex-col items-center justify-center">
+                                <p class="text-[10px] text-slate-400 uppercase tracking-widest mb-1">Cashier ID Barcode Preview</p>
+                                <svg id="cashierBarcodePreviewSvg"></svg>
                             </div>
                             <div>
-                                <label class="block text-xs font-bold uppercase tracking-wider text-cyan-300 mb-1">Hourly Rate ($/hr) *</label>
-                                <input type="number" step="0.01" id="empRate" required value="22.50" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto">
+                                <label class="block text-xs font-bold uppercase tracking-wider text-sky-300 mb-1">Cashier Photo Upload (For ID Badge)</label>
+                                <input type="file" id="empImageFile" accept="image/*" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-400 text-xs file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-sky-500 file:text-slate-950 pointer-events-auto">
                             </div>
                             <div class="flex gap-2">
-                                <button type="submit" id="empSubmitBtn" class="flex-1 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black rounded-2xl shadow-xl uppercase tracking-wider text-xs pointer-events-auto">Save Employee</button>
+                                <button type="submit" id="empSubmitBtn" class="flex-1 py-4 bg-gradient-to-r from-sky-500 to-indigo-600 text-slate-950 font-black rounded-2xl shadow-xl uppercase tracking-wider text-xs pointer-events-auto">Save Cashier & ID</button>
                                 <button type="button" id="empCancelBtn" onclick="resetEmpForm()" class="hidden px-6 py-4 bg-slate-800 text-slate-300 font-bold rounded-2xl text-xs pointer-events-auto">Cancel</button>
                             </div>
                         </form>
                     </div>
                     <div class="space-y-4">
-                        <h2 class="text-xl font-black text-slate-100">Staff Payroll Directory</h2>
+                        <h2 class="text-xl font-black text-slate-100">Staff Payroll & Cashier ID Badges</h2>
                         <div id="payrollListContainer" class="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar pointer-events-auto"></div>
                     </div>
                 </div>
             </div>
 
-            <!-- TAB 8: RETURNS & REFUNDS (Granular Item-Specific) -->
+            <!-- TAB 8: RETURNS & REFUNDS -->
             <div id="tab-returns" class="tab-content hidden space-y-6 pointer-events-auto">
-                <div class="max-w-2xl mx-auto p-8 rounded-3xl bg-slate-900/95 border border-amber-500/30 shadow-2xl pointer-events-auto space-y-6">
+                <div class="max-w-2xl mx-auto p-6 sm:p-8 rounded-3xl bg-slate-900/95 border border-amber-500/30 shadow-2xl pointer-events-auto space-y-6">
                     <div>
-                        <h2 class="text-2xl font-black text-slate-100 mb-2">Granular Item Returns & Refunds</h2>
+                        <h2 class="text-xl sm:text-2xl font-black text-slate-100 mb-2">Granular Item Returns & Refunds</h2>
                         <p class="text-xs text-slate-400">Process specific returns, restock inventory items, and refund exact amounts to customer accounts.</p>
                     </div>
                     <div class="space-y-4 pointer-events-auto">
@@ -367,7 +433,7 @@
                             <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Customer Account # *</label>
                             <input type="text" id="returnAccNum" placeholder="ACC-1001" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none pointer-events-auto">
                         </div>
-                        <div class="grid grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Product Item # *</label>
                                 <input type="text" id="returnProdNum" placeholder="P-101" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none pointer-events-auto">
@@ -381,19 +447,79 @@
                             <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Custom Refund Amount Override ($ Optional)</label>
                             <input type="number" step="0.01" id="returnCustomAmount" placeholder="Leave blank for full item price" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none pointer-events-auto">
                         </div>
-                        <button onclick="processGranularReturn()" class="w-full py-4 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black rounded-2xl shadow-xl uppercase tracking-wider text-xs pointer-events-auto">Process Return & Restock</button>
+                        <button onclick="processGranularReturn()" class="w-full py-4 bg-gradient-to-r from-amber-500 to-indigo-600 text-slate-950 font-black rounded-2xl shadow-xl uppercase tracking-wider text-xs pointer-events-auto">Process Return & Restock</button>
                     </div>
                 </div>
             </div>
 
-            <!-- TAB 9: SHIFT AUDIT (X/Z REPORT) -->
-            <div id="tab-audit" class="tab-content hidden space-y-6 pointer-events-auto">
-                <div class="max-w-2xl mx-auto p-8 rounded-3xl bg-slate-900/95 border border-amber-500/30 shadow-2xl pointer-events-auto space-y-6">
+            <!-- TAB 10: INVENTORY MATRIX -->
+            <div id="tab-inventoryMatrix" class="tab-content hidden space-y-6 pointer-events-auto">
+                <div class="bg-slate-900/60 p-6 sm:p-8 rounded-3xl border border-amber-500/20 backdrop-blur-xl shadow-xl space-y-6">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                            <h2 class="text-xl sm:text-2xl font-black text-slate-100">Inventory Matrix & Batch Management</h2>
+                            <p class="text-xs text-slate-400 mt-1">Track SKU batches, expiration dates, supplier lead times, and low-stock replenishment.</p>
+                        </div>
+                        <button onclick="triggerAutomatedPurchaseOrder()" class="px-5 py-3 bg-gradient-to-r from-amber-500 to-indigo-600 text-slate-950 font-black rounded-2xl text-xs uppercase tracking-wider shadow-lg">Generate Auto Purchase Order</button>
+                    </div>
+                    <div id="inventoryMatrixContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+                </div>
+            </div>
+
+            <!-- TAB 11: CUSTOMER CRM -->
+            <div id="tab-crmAnalytics" class="tab-content hidden space-y-6 pointer-events-auto">
+                <div class="bg-slate-900/60 p-6 sm:p-8 rounded-3xl border border-amber-500/20 backdrop-blur-xl shadow-xl space-y-6">
                     <div>
-                        <h2 class="text-2xl font-black text-slate-100 mb-2">Shift Financial Audit (X & Z Report)</h2>
+                        <h2 class="text-xl sm:text-2xl font-black text-slate-100">Customer CRM & Lifetime Analytics</h2>
+                        <p class="text-xs text-slate-400 mt-1">Review top VIP clients, lifetime spending metrics, and automated tier statuses.</p>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                        <div class="p-5 bg-slate-950 rounded-2xl border border-white/5">
+                            <p class="text-xs text-amber-400 uppercase font-bold">VIP Platinum Members</p>
+                            <h3 id="crmVipCount" class="text-3xl font-black text-slate-100 mt-2">0</h3>
+                        </div>
+                        <div class="p-5 bg-slate-950 rounded-2xl border border-white/5">
+                            <p class="text-xs text-emerald-400 uppercase font-bold">Average Customer Lifetime Value</p>
+                            <h3 id="crmAvgLtv" class="text-3xl font-black text-emerald-400 mt-2">$0.00</h3>
+                        </div>
+                        <div class="p-5 bg-slate-950 rounded-2xl border border-white/5">
+                            <p class="text-xs text-sky-400 uppercase font-bold">Total Loyalty Points Issued</p>
+                            <h3 id="crmTotalPoints" class="text-3xl font-black text-sky-400 mt-2">0 Pts</h3>
+                        </div>
+                    </div>
+                    <div id="crmClientAnalyticsList" class="space-y-3"></div>
+                </div>
+            </div>
+
+            <!-- TAB 12: TIMECLOCK -->
+            <div id="tab-timeclock" class="tab-content hidden space-y-6 pointer-events-auto">
+                <div class="max-w-2xl mx-auto bg-slate-900/95 p-6 sm:p-8 rounded-3xl border border-amber-500/30 shadow-2xl space-y-6">
+                    <div>
+                        <h2 class="text-xl sm:text-2xl font-black text-slate-100">Employee Timeclock & Shift Scheduling</h2>
+                        <p class="text-xs text-slate-400 mt-1">Clock in/out staff members, calculate hours worked, and preview payroll wages.</p>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Select Staff Member *</label>
+                            <select id="timeclockEmpSelect" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none"></select>
+                        </div>
+                        <div class="flex gap-4">
+                            <button onclick="staffClockAction('in')" class="flex-1 py-4 bg-emerald-500 text-slate-950 font-black rounded-2xl shadow-xl uppercase tracking-wider text-xs">Clock In</button>
+                            <button onclick="staffClockAction('out')" class="flex-1 py-4 bg-rose-500 text-slate-950 font-black rounded-2xl shadow-xl uppercase tracking-wider text-xs">Clock Out</button>
+                        </div>
+                        <div id="timeclockStatusLog" class="p-4 bg-slate-950 rounded-2xl border border-white/5 text-xs text-slate-300 space-y-2"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 9: SHIFT AUDIT -->
+            <div id="tab-audit" class="tab-content hidden space-y-6 pointer-events-auto">
+                <div class="max-w-2xl mx-auto p-6 sm:p-8 rounded-3xl bg-slate-900/95 border border-amber-500/30 shadow-2xl pointer-events-auto space-y-6">
+                    <div>
+                        <h2 class="text-xl sm:text-2xl font-black text-slate-100 mb-2">Shift Financial Audit (X & Z Report)</h2>
                         <p class="text-xs text-slate-400">Reconcile cash drawer totals against cloud sales.</p>
                     </div>
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div class="p-5 bg-slate-950 rounded-2xl border border-white/5">
                             <p class="text-xs text-slate-400 uppercase font-bold">Cloud Recorded Revenue</p>
                             <h3 id="auditSystemTotal" class="text-2xl font-black text-emerald-400 mt-1">$0.00</h3>
@@ -407,78 +533,121 @@
                         <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">Counted Physical Cash in Drawer ($)</label>
                         <input type="number" step="0.01" id="countedCashInput" placeholder="0.00" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-sm focus:outline-none pointer-events-auto">
                     </div>
-                    <div class="flex gap-3">
-                        <button onclick="generateShiftReport('X')" class="flex-1 py-3.5 bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 font-bold rounded-xl text-xs uppercase pointer-events-auto">Print X-Report (Interim)</button>
-                        <button onclick="generateShiftReport('Z')" class="flex-1 py-3.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black rounded-xl text-xs uppercase pointer-events-auto">Print Z-Report (End of Day)</button>
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <button onclick="generateShiftReport('X')" class="flex-1 py-3.5 bg-sky-500/20 border border-sky-500/40 text-sky-300 font-bold rounded-xl text-xs uppercase pointer-events-auto">Print X-Report (Interim)</button>
+                        <button onclick="generateShiftReport('Z')" class="flex-1 py-3.5 bg-gradient-to-r from-amber-500 to-indigo-600 text-slate-950 font-black rounded-xl text-xs uppercase pointer-events-auto">Print Z-Report (End of Day)</button>
                     </div>
                 </div>
             </div>
 
             <!-- TAB 10: ADMIN SETTINGS -->
             <div id="tab-settings" class="tab-content hidden space-y-6 pointer-events-auto">
-                <div class="max-w-3xl mx-auto p-8 rounded-3xl bg-slate-900/95 border border-amber-500/30 shadow-2xl pointer-events-auto">
-                    <h2 class="text-2xl font-black text-slate-100 mb-2">Cloud Store Admin Settings</h2>
-                    <p class="text-xs text-slate-400 mb-6">Manage workers, Stripe gateway keys, and store data deletion.</p>
+                <div class="max-w-3xl mx-auto p-6 sm:p-8 rounded-3xl bg-slate-900/95 border border-amber-500/30 shadow-2xl pointer-events-auto">
+                    <h2 class="text-xl sm:text-2xl font-black text-slate-100 mb-2">Nexus Terminal Admin Settings</h2>
+                    <p class="text-xs text-slate-400 mb-6">Manage workers, Discord Webhooks, theme mode, and Stripe Live keys.</p>
                     
                     <div id="settingsLockedBox" class="space-y-4 pointer-events-auto">
                         <div class="p-6 bg-slate-950 rounded-2xl border border-amber-500/20">
                             <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-2">Enter Admin PIN (Default: 6355)</label>
-                            <div class="flex gap-3">
+                            <div class="flex flex-col sm:flex-row gap-3">
                                 <input type="password" id="adminPinInput" maxlength="4" class="bg-slate-900 border border-amber-500/30 rounded-xl px-4 py-2.5 text-slate-200 text-sm tracking-widest focus:outline-none pointer-events-auto" placeholder="••••">
-                                <button onclick="unlockAdminSettings()" class="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black rounded-xl text-xs uppercase pointer-events-auto">Unlock Settings</button>
+                                <button onclick="unlockAdminSettings()" class="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-indigo-600 text-slate-950 font-black rounded-xl text-xs uppercase pointer-events-auto">Unlock Settings</button>
                             </div>
                         </div>
                     </div>
 
                     <div id="settingsUnlockedBox" class="hidden space-y-8 pointer-events-auto">
+                        <!-- THEME SETTINGS -->
+                        <div class="p-6 bg-slate-950 rounded-2xl border border-amber-500/20 space-y-4 pointer-events-auto">
+                            <h3 class="text-sm font-bold text-amber-300 uppercase tracking-wider">Interface Theme</h3>
+                            <select id="themeToggleSetting" onchange="toggleThemeMode(this.value)" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 cursor-pointer pointer-events-auto">
+                                <option value="dark">Luxury Obsidian Dark Mode</option>
+                                <option value="light">Visible Modern Light Mode</option>
+                            </select>
+                        </div>
+
+                        <!-- MULTI-CHANNEL DISCORD WEBHOOK CONFIGURATION -->
+                        <div class="p-6 bg-slate-950 rounded-2xl border border-amber-500/20 space-y-4 pointer-events-auto">
+                            <h3 class="text-sm font-bold text-amber-300 uppercase tracking-wider">Granular Discord Webhook Channels</h3>
+                            <p class="text-[11px] text-slate-400">Configure separate Discord webhook URLs for different system modules and event streams.</p>
+                            
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-300 mb-1">1. Purchases & Checkout Webhook URL</label>
+                                    <input type="text" id="whPurchasesInput" placeholder="https://discord.com/api/webhooks/..." class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 pointer-events-auto">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-300 mb-1">2. Staff & Timeclock Webhook URL</label>
+                                    <input type="text" id="whStaffInput" placeholder="https://discord.com/api/webhooks/..." class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 pointer-events-auto">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-300 mb-1">3. Customer Accounts & CRM Webhook URL</label>
+                                    <input type="text" id="whAccountsInput" placeholder="https://discord.com/api/webhooks/..." class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 pointer-events-auto">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-300 mb-1">4. Inventory & Products Webhook URL</label>
+                                    <input type="text" id="whInventoryInput" placeholder="https://discord.com/api/webhooks/..." class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 pointer-events-auto">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-300 mb-1">5. Security & Admin Auth Webhook URL</label>
+                                    <input type="text" id="whSecurityInput" placeholder="https://discord.com/api/webhooks/..." class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 pointer-events-auto">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-300 mb-1">6. Shift Audit & Z-Reports Webhook URL</label>
+                                    <input type="text" id="whAuditInput" placeholder="https://discord.com/api/webhooks/..." class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 pointer-events-auto">
+                                </div>
+                            </div>
+                            <button onclick="saveAllWebhookSettings()" class="w-full py-3 bg-amber-500 text-slate-950 font-black rounded-xl text-xs uppercase tracking-wider pointer-events-auto">Save All Webhook Configurations</button>
+                        </div>
+
                         <!-- STORE OWNER ACCOUNT DELETION -->
                         <div class="p-6 bg-slate-950 rounded-2xl border border-rose-500/30 space-y-4 pointer-events-auto">
                             <h3 class="text-sm font-bold text-rose-400 uppercase tracking-wider">Danger Zone: Delete Store Owner Account</h3>
                             <p class="text-[11px] text-slate-400">Permanently delete the entire store owner account and all associated cloud data. Requires Main Owner PIN.</p>
-                            <div class="flex gap-3 pt-2">
-                                <input type="password" id="deleteOwnerPinInput" maxlength="4" placeholder="Enter Owner PIN" class="w-44 bg-slate-900 border border-rose-500/30 rounded-xl px-4 py-2.5 text-xs text-slate-200 pointer-events-auto">
+                            <div class="flex flex-col sm:flex-row gap-3 pt-2">
+                                <input type="password" id="deleteOwnerPinInput" maxlength="4" placeholder="Enter Owner PIN" class="w-full sm:w-44 bg-slate-900 border border-rose-500/30 rounded-xl px-4 py-2.5 text-xs text-slate-200 pointer-events-auto">
                                 <button onclick="confirmDeleteStoreOwner()" class="px-5 py-2.5 bg-rose-500 text-slate-950 font-black rounded-xl text-xs pointer-events-auto">Delete Entire Store</button>
                             </div>
                         </div>
 
                         <!-- STRIPE PAYMENT GATEWAY SETTINGS -->
                         <div class="p-6 bg-slate-950 rounded-2xl border border-amber-500/20 space-y-4 pointer-events-auto">
-                            <h3 class="text-sm font-bold text-amber-300 uppercase tracking-wider">Stripe Live Real Money Gateway</h3>
-                            <div class="grid grid-cols-2 gap-4">
+                            <h3 class="text-sm font-bold text-amber-300 uppercase tracking-wider">Stripe Live Real Money Gateway Config</h3>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-xs font-bold text-slate-300 mb-1">Publishable Key</label>
-                                    <input type="text" id="stripePubInput" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 pointer-events-auto" placeholder="pk_live_...">
+                                    <input type="text" id="stripePubInput" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 pointer-events-auto" value="pk_live_51UB59F7GI7FzkBKdzZ6tMG3dIobIZ4xYW0xM3g4rwpve1pl031XDBxlWTI7XDW7tbxkJxz1QRGpC9DPi0uuqAebC00mVrwcqko">
                                 </div>
                                 <div>
                                     <label class="block text-xs font-bold text-slate-300 mb-1">Secret Key</label>
-                                    <input type="password" id="stripeSecInput" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 pointer-events-auto" placeholder="sk_live_...">
+                                    <input type="password" id="stripeSecInput" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 pointer-events-auto" value="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">
                                 </div>
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-slate-300 mb-1">Payment Mode</label>
                                 <select id="stripeModeSelect" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 cursor-pointer pointer-events-auto">
-                                    <option value="fake">Internal Store Credit & Card on File (Sandbox)</option>
                                     <option value="real">Real Money (Stripe Live Credit Cards)</option>
+                                    <option value="fake">Internal Store Credit (Sandbox)</option>
                                 </select>
                             </div>
-                            <button onclick="saveStripeSettings()" class="w-full py-3 bg-emerald-500 text-slate-950 font-black rounded-xl text-xs uppercase tracking-wider pointer-events-auto">Save Stripe Gateway Config</button>
+                            <button onclick="saveStripeSettings()" class="w-full py-3 bg-amber-500 text-slate-950 font-black rounded-xl text-xs uppercase tracking-wider pointer-events-auto">Save Stripe Gateway Config</button>
                         </div>
 
-                        <!-- WORKER / SUB-OPERATOR MANAGEMENT SECTION -->
+                        <!-- WORKER MANAGEMENT SECTION -->
                         <div class="p-6 bg-slate-950 rounded-2xl border border-amber-500/20 space-y-4 pointer-events-auto">
                             <h3 class="text-sm font-bold text-amber-300 uppercase tracking-wider">Store Workers (Sub-Operators)</h3>
                             <div id="subOperatorsListContainer" class="space-y-2 pointer-events-auto"></div>
-                            <div class="flex gap-3 pt-2">
+                            <div class="flex flex-col sm:flex-row gap-3 pt-2">
                                 <input type="text" id="newSubOpUser" placeholder="Worker Username" class="flex-1 bg-slate-900 border border-amber-500/30 rounded-xl px-4 py-2.5 text-xs text-slate-200 pointer-events-auto">
-                                <input type="password" id="newSubOpPin" maxlength="4" placeholder="4-Digit PIN" class="w-32 bg-slate-900 border border-amber-500/30 rounded-xl px-4 py-2.5 text-xs text-slate-200 pointer-events-auto">
+                                <input type="password" id="newSubOpPin" maxlength="4" placeholder="4-Digit PIN" class="w-full sm:w-32 bg-slate-900 border border-amber-500/30 rounded-xl px-4 py-2.5 text-xs text-slate-200 pointer-events-auto">
                                 <button onclick="adminCreateSubOperator()" class="px-5 py-2.5 bg-amber-500 text-slate-950 font-bold rounded-xl text-xs pointer-events-auto">Add Worker</button>
                             </div>
                         </div>
 
-                        <!-- HARDWARE SECTION -->
+                        <!-- HARDWARE PERIPHERALS SECTION -->
                         <div class="p-6 bg-slate-950 rounded-2xl border border-amber-500/20 space-y-4 pointer-events-auto">
-                            <h3 class="text-sm font-bold text-amber-300 uppercase tracking-wider">POS Peripherals & Hardware Bridge</h3>
-                            <button onclick="discoverAllConnectedHardware()" class="px-5 py-3 bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold rounded-xl text-xs hover:bg-amber-500/30 pointer-events-auto">Scan Hardware</button>
+                            <h3 class="text-sm font-bold text-amber-300 uppercase tracking-wider">Bluetooth & USB Peripherals</h3>
+                            <button onclick="discoverAllConnectedHardware()" class="px-5 py-3 bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold rounded-xl text-xs hover:bg-amber-500/30 pointer-events-auto">Scan Bluetooth & USB Devices</button>
                             <div id="hardwareDeviceListContainer" class="space-y-2 mt-2 pointer-events-auto"></div>
                         </div>
 
@@ -486,7 +655,7 @@
                         <div class="p-6 bg-slate-950 rounded-2xl border border-amber-500/20 space-y-4 pointer-events-auto">
                             <h3 class="text-sm font-bold text-amber-300 uppercase tracking-wider">Sound Effects Engine</h3>
                             <select id="soundToggleSetting" onchange="toggleSoundEffects(this.value)" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 cursor-pointer pointer-events-auto">
-                                <option value="ON">Elite HD Synthesizer (ON)</option>
+                                <option value="ON">HD Synthesizer (ON)</option>
                                 <option value="OFF">Muted (OFF)</option>
                             </select>
                         </div>
@@ -497,8 +666,29 @@
         </main>
     </div>
 
-    <!-- CONFIRMATION MODAL -->
-    <div id="confirmationModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-6 pointer-events-auto">
+    <!-- MODALS -->
+    <div id="cardOnFileModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 pointer-events-auto">
+        <div class="w-full max-w-md bg-slate-900 border border-amber-500/40 rounded-3xl p-6 shadow-2xl text-center space-y-4 pointer-events-auto">
+            <h3 class="text-lg font-black text-amber-400">Select Credit Card on File</h3>
+            <p class="text-xs text-slate-400">Choose a saved card to process the purchase.</p>
+            <div id="cardOnFileSelectionList" class="space-y-3 max-h-60 overflow-y-auto pr-1 text-left"></div>
+            <button onclick="document.getElementById('cardOnFileModal').classList.add('hidden')" class="w-full py-3 bg-slate-800 text-slate-300 font-bold rounded-xl text-xs uppercase pointer-events-auto">Cancel</button>
+        </div>
+    </div>
+
+    <div id="forcePurchasePinModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 pointer-events-auto">
+        <div class="w-full max-w-sm bg-slate-900 border border-rose-500/40 rounded-3xl p-6 shadow-2xl text-center space-y-4 pointer-events-auto">
+            <h3 class="text-lg font-black text-rose-400">Force Purchase PIN Required</h3>
+            <p id="forcePurchaseMsg" class="text-xs text-slate-400">Card has insufficient funds or is inactive. Enter PIN 2285 to bypass and force purchase.</p>
+            <input type="password" id="forcePinInput" maxlength="4" class="w-full bg-slate-950 border border-rose-500/30 rounded-2xl px-4 py-3 text-center text-slate-200 text-lg tracking-widest focus:outline-none pointer-events-auto" placeholder="••••">
+            <div class="flex gap-2">
+                <button onclick="verifyForcePurchasePin()" class="flex-1 py-3 bg-rose-500 text-slate-950 font-black rounded-xl text-xs uppercase pointer-events-auto">Force Purchase</button>
+                <button onclick="document.getElementById('forcePurchasePinModal').classList.add('hidden')" class="px-4 py-3 bg-slate-800 text-slate-300 font-bold rounded-xl text-xs pointer-events-auto">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirmationModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 pointer-events-auto">
         <div class="w-full max-w-md bg-slate-900 border border-amber-500/40 rounded-3xl p-6 shadow-2xl text-center space-y-4 pointer-events-auto">
             <div class="w-12 h-12 bg-amber-500/20 text-amber-400 rounded-2xl mx-auto flex items-center justify-center font-black text-xl">?</div>
             <h3 class="text-lg font-black text-slate-100">Confirmation Required</h3>
@@ -510,8 +700,7 @@
         </div>
     </div>
 
-    <!-- OWNER PIN AUTHORIZATION MODAL FOR SUB-OPERATOR CREATION -->
-    <div id="ownerPinAuthModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-6 pointer-events-auto">
+    <div id="ownerPinAuthModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 pointer-events-auto">
         <div class="w-full max-w-sm bg-slate-900 border border-amber-500/40 rounded-3xl p-6 shadow-2xl text-center space-y-4 pointer-events-auto">
             <h3 class="text-lg font-black text-amber-400">Owner PIN Authorization</h3>
             <p class="text-xs text-slate-400">Enter Main Owner PIN to authorize creating worker sub-operator.</p>
@@ -524,17 +713,17 @@
     </div>
 
     <!-- ACCOUNT MODAL -->
-    <div id="accountModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-6 pointer-events-auto">
+    <div id="accountModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 pointer-events-auto">
         <div class="w-full max-w-5xl bg-slate-900 border border-amber-500/40 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] pointer-events-auto">
-            <div class="p-6 bg-slate-950 border-b border-amber-500/20 flex justify-between items-center">
+            <div class="p-4 sm:p-6 bg-slate-950 border-b border-amber-500/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div class="flex items-center gap-4">
-                    <div id="modalAvatar" class="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-yellow-400 text-slate-950 font-black text-xl flex items-center justify-center shadow-lg">A</div>
+                    <div id="modalAvatar" class="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-indigo-600 text-slate-950 font-black text-xl flex items-center justify-center shadow-lg">A</div>
                     <div>
                         <h3 id="modalAccName" class="text-lg font-black text-slate-100">Client Name</h3>
-                        <p class="text-xs text-amber-400 font-mono"><span id="modalAccNum">ACC-1001</span> | <span id="modalAccEmail">client@royal.com</span></p>
+                        <p class="text-xs text-amber-400 font-mono"><span id="modalAccNum">ACC-1001</span> | <span id="modalAccEmail">client@nexus.com</span></p>
                     </div>
                 </div>
-                <div class="flex items-center gap-6">
+                <div class="flex items-center gap-4 sm:gap-6 w-full sm:w-auto justify-between sm:justify-end">
                     <div class="text-center bg-amber-500/10 px-4 py-1.5 rounded-xl border border-amber-500/30">
                         <p class="text-[9px] uppercase font-bold text-amber-300">Loyalty Points</p>
                         <p id="modalAccPoints" class="text-sm font-black text-amber-400">0 Pts</p>
@@ -547,11 +736,10 @@
                 </div>
             </div>
 
-            <div class="flex-1 overflow-y-auto p-6 grid grid-cols-2 gap-6 pointer-events-auto">
-                <!-- LEFT COLUMN: CART & SCANNER -->
+            <div class="flex-1 overflow-y-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-2 gap-6 pointer-events-auto">
                 <div class="space-y-6 flex flex-col pointer-events-auto">
                     <div class="flex gap-2">
-                        <input type="text" id="cartProdNumInput" placeholder="Scan Barcode / Enter Product #..." class="flex-1 bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-xs focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto">
+                        <input type="text" id="cartProdNumInput" placeholder="Scan Barcode (USB Scanner ready) / Enter SKU..." class="flex-1 bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-3 text-slate-200 text-xs focus:outline-none focus:border-amber-400 shadow-inner pointer-events-auto">
                         <button onclick="processScannedCode(document.getElementById('cartProdNumInput').value)" class="px-5 py-3 bg-amber-500 text-slate-950 font-black rounded-2xl text-xs uppercase tracking-wider pointer-events-auto">Scan</button>
                         <button onclick="openCameraScannerModal('cartProdNumInput')" class="px-4 py-3 bg-slate-800 text-amber-300 rounded-2xl text-xs font-bold pointer-events-auto" title="Camera Scanner"><i data-lucide="camera" class="w-4 h-4"></i></button>
                     </div>
@@ -566,21 +754,22 @@
                                 <tbody id="cartItemsTableBody" class="pointer-events-auto"></tbody>
                             </table>
                         </div>
-                        <div class="p-4 bg-slate-900 border-t border-white/5 flex justify-between items-center pointer-events-auto">
+                        <!-- CART FOOTER WITH ACCOUNT BALANCE PAYMENT BUTTON -->
+                        <div class="p-4 bg-slate-900 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-4 pointer-events-auto">
                             <div>
                                 <p class="text-[10px] uppercase font-bold text-slate-400">Grand Total</p>
                                 <p id="cartGrandTotal" class="text-xl font-black text-emerald-400">$0.00</p>
                             </div>
-                            <div class="flex gap-2">
-                                <button onclick="checkoutWithGiftCard()" class="px-3 py-3 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold rounded-xl text-xs pointer-events-auto">Gift Card</button>
-                                <button onclick="checkoutWithCardOnFile()" class="px-3 py-3 bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 font-bold rounded-xl text-xs pointer-events-auto">Card on File</button>
-                                <button onclick="checkoutCart()" class="px-5 py-3 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black rounded-xl text-xs uppercase tracking-wider shadow-lg pointer-events-auto">Charge Account</button>
+                            <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+                                <button onclick="checkoutWithAccountBalance()" class="flex-1 sm:flex-none px-3 py-3 bg-indigo-600 text-slate-100 font-bold rounded-xl text-xs uppercase pointer-events-auto shadow-lg">Pay Account Balance</button>
+                                <button onclick="checkoutWithStripeLive()" class="flex-1 sm:flex-none px-3 py-3 bg-gradient-to-r from-amber-500 to-indigo-600 text-slate-950 font-black rounded-xl text-xs uppercase pointer-events-auto shadow-lg">Stripe / Fake Pay</button>
+                                <button onclick="checkoutWithGiftCard()" class="flex-1 sm:flex-none px-3 py-3 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold rounded-xl text-xs pointer-events-auto">Gift Card</button>
+                                <button onclick="openCardOnFileModal()" class="flex-1 sm:flex-none px-3 py-3 bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold rounded-xl text-xs pointer-events-auto">Card on File</button>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- RIGHT COLUMN: ACCOUNT ACTIONS & HISTORY -->
                 <div class="space-y-6 flex flex-col pointer-events-auto">
                     <div class="p-5 bg-slate-950 rounded-2xl border border-white/5 space-y-4 pointer-events-auto">
                         <h4 class="text-xs font-bold uppercase tracking-wider text-amber-300">Account Fund Operations & Loyalty</h4>
@@ -594,7 +783,7 @@
                             <button onclick="applyDiscount()" class="px-5 py-2.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold rounded-xl text-xs pointer-events-auto">Apply Discount</button>
                         </div>
                         <div class="flex gap-2">
-                            <button onclick="editAccountModalDirect()" class="flex-1 py-2.5 bg-slate-800 text-amber-300 border border-white/10 font-bold rounded-xl text-xs pointer-events-auto">Edit Account Profile</button>
+                            <button onclick="editAccountModalDirect()" class="flex-1 py-2.5 bg-slate-800 text-amber-300 border border-white/10 font-bold rounded-xl text-xs pointer-events-auto">Edit Profile</button>
                             <button onclick="redeemLoyaltyPoints()" class="flex-1 py-2.5 bg-purple-500/20 border border-purple-500/40 text-purple-300 font-bold rounded-xl text-xs pointer-events-auto">Redeem 100 Pts ($10)</button>
                         </div>
                     </div>
@@ -608,8 +797,8 @@
         </div>
     </div>
 
-    <!-- PIN SECURITY MODAL -->
-    <div id="pinModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-6 pointer-events-auto">
+    <!-- OTHER MODALS -->
+    <div id="pinModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 pointer-events-auto">
         <div class="w-full max-w-sm bg-slate-900 border border-rose-500/40 rounded-3xl p-6 shadow-2xl text-center space-y-4 pointer-events-auto">
             <h3 class="text-lg font-black text-rose-400">Security PIN Required</h3>
             <p class="text-xs text-slate-400">Enter manager PIN (Default: 2285) to authorize funds deduction.</p>
@@ -621,8 +810,7 @@
         </div>
     </div>
 
-    <!-- INSUFFICIENT / ERROR MODAL -->
-    <div id="insufficientModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-6 pointer-events-auto">
+    <div id="insufficientModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 pointer-events-auto">
         <div class="w-full max-w-md bg-slate-900 border border-amber-500/40 rounded-3xl p-6 shadow-2xl text-center space-y-4 pointer-events-auto">
             <div class="w-12 h-12 bg-amber-500/20 text-amber-400 rounded-2xl mx-auto flex items-center justify-center font-black text-xl">!</div>
             <h3 class="text-lg font-black text-slate-100">Terminal Notice</h3>
@@ -631,8 +819,7 @@
         </div>
     </div>
 
-    <!-- GIFT CARD PAYMENT MODAL -->
-    <div id="giftCardPayModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-6 pointer-events-auto">
+    <div id="giftCardPayModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 pointer-events-auto">
         <div class="w-full max-w-sm bg-slate-900 border border-emerald-500/40 rounded-3xl p-6 shadow-2xl text-center space-y-4 pointer-events-auto">
             <h3 class="text-lg font-black text-emerald-400">Gift Card Payment</h3>
             <p class="text-xs text-slate-400">Scan or enter store gift card code to pay.</p>
@@ -644,8 +831,7 @@
         </div>
     </div>
 
-    <!-- CAMERA SCANNER MODAL -->
-    <div id="cameraScannerModal" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-6 pointer-events-auto">
+    <div id="cameraScannerModal" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 pointer-events-auto">
         <div class="w-full max-w-lg bg-slate-900 border border-amber-500/40 rounded-3xl p-6 shadow-2xl text-center space-y-4 pointer-events-auto">
             <h3 class="text-lg font-black text-amber-400">Live Camera Barcode Scanner</h3>
             <div id="interactiveCameraReader" class="w-full rounded-2xl overflow-hidden border border-white/10 bg-slate-950 h-72 pointer-events-auto"></div>
@@ -654,6 +840,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="webhook.js"></script>
     <script type="module" src="app.js"></script>
 </body>
 </html>
