@@ -45,6 +45,12 @@ function formatCurrency(amount) {
     return `${CurrencySymbols[currentCurrency] || '$'}${amount.toFixed(2)}`;
 }
 
+function getCartGrandTotal() {
+    let subtotal = currentCart.reduce((sum, item) =>
+        sum + ((Number(item.product.price) * item.quantity) * (1 - (item.discount / 100))), 0);
+    return appliedCoupon ? subtotal * (1 - (Number(appliedCoupon.percent) / 100)) : subtotal;
+}
+
 const SoundEngine = {
     enabled: localStorage.getItem('rf_sound') !== 'OFF',
     playClick() {
@@ -208,7 +214,24 @@ window.handleUniversalScan = function(code) {
     if(!code) return;
 
     let activeInput = document.activeElement;
-    if(activeInput && ['INPUT', 'TEXTAREA'].includes(activeInput.tagName)) {
+    let giftCardPayModal = document.getElementById('giftCardPayModal');
+    if(giftCardPayModal && !giftCardPayModal.classList.contains('hidden')) {
+        let input = document.getElementById('payGcCodeInput');
+        if(input) {
+            input.value = code;
+            window.executeGiftCardPayment();
+        }
+        return;
+    }
+
+    let accountModal = document.getElementById('accountModal');
+    if(accountModal && !accountModal.classList.contains('hidden')) {
+        let input = document.getElementById('cartProdNumInput');
+        if(input) { input.value = code; processScannedCode(code); }
+        return;
+    }
+
+    if(activeInput && ['newAccNumber', 'prodNumber', 'gcCode', 'empBarcode'].includes(activeInput.id)) {
         activeInput.value = code;
         activeInput.dispatchEvent(new Event('input'));
         SoundEngine.playScan();
@@ -216,15 +239,6 @@ window.handleUniversalScan = function(code) {
         if(activeInput.id === 'prodNumber') updateFormBarcodePreview('prodNumber', 'prodBarcodePreviewSvg');
         if(activeInput.id === 'gcCode') updateFormBarcodePreview('gcCode', 'gcBarcodePreviewSvg');
         if(activeInput.id === 'empBarcode') updateFormBarcodePreview('empBarcode', 'cashierBarcodePreviewSvg');
-        if(activeInput.id === 'cartProdNumInput') processScannedCode(code);
-        return;
-    }
-
-    // Instantly check if scanned code matches a customer account
-    let acc = accounts.find(a => a.number.toLowerCase() === code.toLowerCase());
-    if(acc) {
-        loadAccountByNumber(acc.number);
-        SoundEngine.playSuccess();
         return;
     }
 
@@ -232,11 +246,11 @@ window.handleUniversalScan = function(code) {
     let productsTab = document.getElementById('tab-products');
     let gcTab = document.getElementById('tab-giftcards');
     let payrollTab = document.getElementById('tab-payroll');
-    let accountModal = document.getElementById('accountModal');
 
-    if (accountModal && !accountModal.classList.contains('hidden')) {
-        let input = document.getElementById('cartProdNumInput');
-        if(input) { input.value = code; processScannedCode(code); }
+    let acc = accounts.find(a => a.number.toLowerCase() === code.toLowerCase());
+    if(acc) {
+        loadAccountByNumber(acc.number);
+        SoundEngine.playSuccess();
         return;
     }
 
@@ -264,18 +278,9 @@ window.handleUniversalScan = function(code) {
         return;
     }
 
-    // Process as product scan
     let prod = products.find(p => p.number === code);
     if(prod) {
-        switchTab('accounts');
-        setTimeout(() => {
-            if(accounts.length > 0) {
-                loadAccountByNumber(accounts[0].number);
-                setTimeout(() => { processScannedCode(code); }, 150);
-            } else {
-                showInsufficientModal(`Scanned Product: ${prod.name} (${formatCurrency(prod.price)}). Load customer account to add to cart.`);
-            }
-        }, 100);
+        showInsufficientModal(`Product scanned: ${prod.name} (${formatCurrency(prod.price)}). Scan the customer's account ID before adding items.`);
         return;
     }
 
@@ -546,8 +551,10 @@ function setupRealtimeCloudListener() {
                     currentActiveAccount = refreshed;
                     let bEl = document.getElementById('modalAccBalance');
                     let pEl = document.getElementById('modalAccPoints');
+                    let tierEl = document.getElementById('modalAccTier');
                     if(bEl) bEl.innerText = formatCurrency(refreshed.balance);
                     if(pEl) pEl.innerText = `${refreshed.points || 0} Pts`;
+                    if(tierEl) tierEl.innerText = accountMembershipTier(refreshed) === 'vip' ? 'VIP Member' : 'Standard';
                     renderModalHistory();
                 }
             }
@@ -661,10 +668,18 @@ window.handleAccountFormSubmit = function(e) {
     let email = document.getElementById('newAccEmail').value.trim();
     let balance = parseFloat(document.getElementById('newAccBalance').value);
     let cardNum = document.getElementById('newCardNum').value.trim();
-    let cardBal = parseFloat(document.getElementById('newCardBal').value) || 500.00;
+    let cardBalInput = document.getElementById('newCardBal').value.trim();
+    let cardBal = cardBalInput === '' ? 0 : parseFloat(cardBalInput);
     let cardStatus = document.getElementById('newCardStatus').value;
     let info = document.getElementById('newAccInfo').value.trim();
+    let membershipTier = document.getElementById('newAccMembership').value;
     let fileInput = document.getElementById('accImageFile');
+
+    if(!Number.isFinite(balance) || balance < 0 || (cardNum && (!Number.isFinite(cardBal) || cardBal < 0))) {
+        SoundEngine.playError();
+        showInsufficientModal('Account and card balances must be valid amounts of zero or more.');
+        return;
+    }
 
     let cardsList = cardNum ? [{ number: cardNum, balance: cardBal, status: cardStatus, exp: '12/28', cvc: '123' }] : [];
 
@@ -677,15 +692,16 @@ window.handleAccountFormSubmit = function(e) {
                 acc.name = name;
                 acc.email = email;
                 acc.balance = balance;
-                if(cardsList.length > 0) acc.cards = cardsList;
+                acc.cards = cardsList;
                 acc.info = info;
+                acc.membershipTier = membershipTier;
                 if(imgData) acc.image = imgData;
                 acc.history.push({ date: new Date().toLocaleString(), text: `Account profile updated by ${currentOperator}` });
             }
         } else {
             if(accounts.some(a => a.number === number)) { SoundEngine.playError(); showInsufficientModal(`Account number "${number}" already exists!`); return; }
             accounts.push({
-                number, name, email, balance, points: 0, cards: cardsList, info, image: imgData,
+                number, name, email, balance, points: 0, cards: cardsList, info, image: imgData, membershipTier,
                 history: [{ date: new Date().toLocaleString(), text: `Account created with balance ${formatCurrency(balance)}` }]
             });
         }
@@ -725,6 +741,7 @@ window.editAccount = function(num) {
     document.getElementById('newAccName').value = acc.name;
     document.getElementById('newAccEmail').value = acc.email;
     document.getElementById('newAccBalance').value = acc.balance;
+    document.getElementById('newAccMembership').value = accountMembershipTier(acc);
     if(acc.cards && acc.cards.length > 0) {
         document.getElementById('newCardNum').value = acc.cards[0].number;
         document.getElementById('newCardBal').value = acc.cards[0].balance;
@@ -759,6 +776,7 @@ window.resetAccountForm = function() {
     document.getElementById('newCardBal').value = '500.00';
     document.getElementById('newCardStatus').value = 'active';
     document.getElementById('newAccInfo').value = '';
+    document.getElementById('newAccMembership').value = 'standard';
     document.getElementById('accountFormTitle').innerText = 'Create Customer Account';
     document.getElementById('accountSubmitBtn').innerText = 'Save Account';
     document.getElementById('accountCancelBtn').classList.add('hidden');
@@ -848,6 +866,8 @@ function printRecords(title, records) {
             header p { margin: 0; color: #4b5563; font-size: 10px; }
             .print-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
             .print-card { min-width: 0; break-inside: avoid; page-break-inside: avoid; border: 1px solid #9ca3af; border-radius: 8px; padding: 10px; }
+                    .print-card.vip { border: 2px solid #b7791f; background: #fffbeb; }
+                    .print-card.vip .record-type { color: #92400e; }
             .card-heading { display: flex; align-items: center; gap: 9px; min-height: 36px; }
             .record-image { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; }
             .record-type { color: #4b5563; font-size: 8px; font-weight: bold; letter-spacing: .08em; text-transform: uppercase; }
@@ -869,20 +889,30 @@ function printRecords(title, records) {
 }
 
 function accountPrintRecord(account) {
+    let membershipTier = accountMembershipTier(account);
     return {
-        type: 'account',
-        heading: 'Customer account ID',
+        type: membershipTier === 'vip' ? 'account vip' : 'account',
+        heading: membershipTier === 'vip' ? 'VIP customer membership ID' : 'Customer account ID',
         name: account.name,
         code: account.number,
         image: account.image || '',
         fields: [
+            { label: 'Membership', value: membershipTier === 'vip' ? 'VIP Member' : 'Standard Member' },
             { label: 'Account ID', value: account.number },
             { label: 'Email', value: account.email || '—' },
             { label: 'Balance', value: formatCurrency(Number(account.balance) || 0) },
             { label: 'Loyalty points', value: account.points || 0 },
-            { label: 'Card status', value: account.cards?.[0]?.status || 'No card on file' }
+            { label: 'Card status', value: account.cards?.[0]?.status || 'No card on file' },
+            ...(account.cards?.length ? [
+                { label: 'Saved card balance', value: formatCurrency(Number(account.cards[0].balance) || 0) }
+            ] : [])
         ]
     };
+}
+
+function accountMembershipTier(account) {
+    if(account.membershipTier === 'vip' || account.membershipTier === 'standard') return account.membershipTier;
+    return /vip/i.test(account.info || '') ? 'vip' : 'standard';
 }
 
 function productPrintRecord(product) {
@@ -967,12 +997,13 @@ function renderAccountsList(filter = '') {
         let cardSummary = acc.cards && acc.cards.length > 0 ? `${acc.cards.length} Card(s) on File` : 'No Cards';
         let img = acc.image || '';
         container.innerHTML += `
-            <div class="p-5 sm:p-6 rounded-3xl bg-slate-900/60 backdrop-blur-2xl border border-amber-500/20 hover:border-amber-500/55 transition-all flex flex-col justify-between space-y-4 shadow-xl pointer-events-auto">
+            <div class="p-5 sm:p-6 rounded-3xl bg-slate-900/60 backdrop-blur-2xl border ${accountMembershipTier(acc) === 'vip' ? 'border-amber-400/60' : 'border-amber-500/20'} hover:border-amber-500/55 transition-all flex flex-col justify-between space-y-4 shadow-xl pointer-events-auto">
                 <div>
                     <div class="flex items-center gap-3 mb-3">
                         ${img ? `<img src="${img}" class="w-12 h-12 rounded-full object-cover border-2 border-amber-500/50 shrink-0">` : `<div class="w-12 h-12 rounded-full bg-amber-500/20 text-amber-300 font-bold flex items-center justify-center text-lg shrink-0 border-2 border-amber-500/40">${acc.name.charAt(0)}</div>`}
                         <div>
                             <span class="text-xs font-mono text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-xl border border-amber-500/25">${acc.number}</span>
+                            ${accountMembershipTier(acc) === 'vip' ? '<span class="text-[9px] font-black uppercase tracking-wider text-amber-200 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-400/40">VIP</span>' : ''}
                             <h3 class="text-base sm:text-lg font-bold text-slate-100 mt-0.5">${acc.name}</h3>
                         </div>
                     </div>
@@ -1015,14 +1046,13 @@ window.loadAccountByNumber = function(num) {
     appliedCoupon = null;
 
     let avatarContainer = document.getElementById('modalAvatarContainer');
-    if(acc.image) {
-        avatarContainer.innerHTML = `<img src="${acc.image}" class="w-full h-full object-cover rounded-2xl">`;
-    } else {
-        document.getElementById('modalAvatar').innerText = acc.name.charAt(0);
-    }
+    avatarContainer.innerHTML = acc.image
+        ? `<img src="${acc.image}" class="w-full h-full object-cover rounded-2xl">`
+        : `<span id="modalAvatar">${escapePrintHtml(acc.name.charAt(0))}</span>`;
     document.getElementById('modalAccName').innerText = acc.name;
     document.getElementById('modalAccNum').innerText = acc.number;
     document.getElementById('modalAccEmail').innerText = acc.email;
+    document.getElementById('modalAccTier').innerText = accountMembershipTier(acc) === 'vip' ? 'VIP Member' : 'Standard';
     document.getElementById('modalAccBalance').innerText = formatCurrency(acc.balance);
     document.getElementById('modalAccPoints').innerText = `${acc.points || 0} Pts`;
 
@@ -1084,16 +1114,41 @@ window.processScannedCode = function(code) {
 
     let acc = accounts.find(a => a.number.toLowerCase() === code.toLowerCase());
     if(acc) {
-        closeAccountModal();
-        loadAccountByNumber(acc.number);
-        SoundEngine.playSuccess();
+        let input = document.getElementById('cartProdNumInput');
+        if(input) input.value = '';
+        if(currentActiveAccount?.number === acc.number) {
+            SoundEngine.playScan();
+            return;
+        }
+        if(currentCart.length > 0) {
+            SoundEngine.playError();
+            showInsufficientModal('Finish or clear the current cart before switching customer accounts.');
+            return;
+        }
+        let switchAccount = () => {
+            closeAccountModal();
+            loadAccountByNumber(acc.number);
+            SoundEngine.playSuccess();
+        };
+        switchAccount();
         return;
     }
 
     let prod = products.find(p => p.number.toLowerCase() === code.toLowerCase());
     if(prod) {
-        if((prod.stock || 0) <= 0) { SoundEngine.playError(); showInsufficientModal(`Product "${prod.name}" is out of stock!`); return; }
+        if(!currentActiveAccount) {
+            SoundEngine.playError();
+            showInsufficientModal('Scan a customer account ID before adding products to the cart.');
+            return;
+        }
+        let stock = Number(prod.stock) || 0;
         let existing = currentCart.find(i => i.product.number === prod.number);
+        if(stock <= 0) { SoundEngine.playError(); showInsufficientModal(`Product "${prod.name}" is out of stock!`); return; }
+        if(existing && existing.quantity >= stock) {
+            SoundEngine.playError();
+            showInsufficientModal(`Only ${stock} unit(s) of "${prod.name}" are available.`);
+            return;
+        }
         if(existing) existing.quantity += 1;
         else currentCart.push({ product: prod, quantity: 1, discount: 0 });
         let input = document.getElementById('cartProdNumInput');
@@ -1824,8 +1879,6 @@ function renderCartTable() {
     let tbody = document.getElementById('cartItemsTableBody');
     if(!tbody) return;
     tbody.innerHTML = '';
-    let subtotal = 0;
-
     if(currentCart.length === 0) {
         tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-500">Cart is empty. Scan item above.</td></tr>`;
         let gtEl = document.getElementById('cartGrandTotal');
@@ -1837,7 +1890,6 @@ function renderCartTable() {
 
     currentCart.forEach((item, idx) => {
         let itemTotal = (item.product.price * item.quantity) * (1 - (item.discount / 100));
-        subtotal += itemTotal;
 
         tbody.innerHTML += `
             <tr class="hover:bg-white/5">
@@ -1865,8 +1917,7 @@ function renderCartTable() {
         `;
     });
 
-    let grandTotal = subtotal;
-    if(appliedCoupon) grandTotal -= (subtotal * (appliedCoupon.percent / 100));
+    let grandTotal = getCartGrandTotal();
     let cdEl = document.getElementById('appliedCouponDisplay');
     let gtEl = document.getElementById('cartGrandTotal');
     if(cdEl) cdEl.innerText = appliedCoupon ? `Coupon: ${appliedCoupon.name} (-${appliedCoupon.percent}%)` : '';
@@ -1875,7 +1926,8 @@ function renderCartTable() {
 
 window.updateCartQty = function(idx, change) {
     let item = currentCart[idx];
-    if(change > 0 && (item.product.stock || 0) <= item.quantity) {
+    if(!item) return;
+    if(change > 0 && (Number(item.product.stock) || 0) <= item.quantity) {
         SoundEngine.playError();
         showInsufficientModal(`Stock limit (${item.product.stock}) reached.`);
         return;
@@ -1892,32 +1944,62 @@ window.updateItemDiscount = function(idx, val) {
 };
 
 window.removeCartItem = function(idx) {
+    if(!currentCart[idx]) return;
     currentCart.splice(idx, 1);
     renderCartTable();
 };
 
+function validateCartStock() {
+    for(let item of currentCart) {
+        let product = products.find(entry => entry.number === item.product.number);
+        let available = Number(product?.stock) || 0;
+        if(!product) {
+            SoundEngine.playError();
+            showInsufficientModal(`Product "${item.product.name}" is no longer in inventory. Remove it from the cart before checkout.`);
+            return false;
+        }
+        if(available < item.quantity) {
+            SoundEngine.playError();
+            showInsufficientModal(`Only ${available} unit(s) of "${product.name}" remain in stock. Update the cart before checkout.`);
+            return false;
+        }
+        item.product = product;
+    }
+    renderCartTable();
+    return true;
+}
+
 window.checkoutWithAccountBalance = function() {
     if(currentCart.length === 0) { alert('Cart is empty. Scan items first.'); return; }
     if(!currentActiveAccount) { SoundEngine.playError(); showInsufficientModal('No customer account loaded. Please load an account first.'); return; }
+    if(!validateCartStock()) return;
 
-    let subtotal = currentCart.reduce((sum, item) => sum + ((item.product.price * item.quantity) * (1 - (item.discount / 100))), 0);
-    let grandTotal = appliedCoupon ? subtotal * (1 - appliedCoupon.percent / 100) : subtotal;
-
-    let stripeMode = localStorage.getItem('rf_stripe_mode') || 'real';
-    if(stripeMode !== 'fake' && currentActiveAccount.balance < grandTotal) {
+    let grandTotal = getCartGrandTotal();
+    let availableBalance = Number(currentActiveAccount.balance) || 0;
+    if(!Number.isFinite(grandTotal) || grandTotal <= 0) {
         SoundEngine.playError();
-        showInsufficientModal(`Insufficient account balance (${formatCurrency(currentActiveAccount.balance)}). Use Force Purchase (PIN 2285) or switch to Sandbox/Fake mode.`);
+        showInsufficientModal('The cart total is invalid. Check product prices and discounts.');
+        return;
+    }
+    if(availableBalance < grandTotal) {
+        SoundEngine.playError();
+        showInsufficientModal(`Insufficient account balance. Available: ${formatCurrency(availableBalance)}; required: ${formatCurrency(grandTotal)}.`);
         return;
     }
 
-    currentActiveAccount.balance -= grandTotal;
+    currentActiveAccount.balance = availableBalance - grandTotal;
     finalizeSuccessfulCheckout(grandTotal, `Paid via Customer Account Balance (${currentActiveAccount.number})`);
 };
 
 window.checkoutWithStripeLive = async function() {
     if(currentCart.length === 0) { alert('Cart is empty. Scan items first.'); return; }
-    let subtotal = currentCart.reduce((sum, item) => sum + ((item.product.price * item.quantity) * (1 - (item.discount / 100))), 0);
-    let grandTotal = appliedCoupon ? subtotal * (1 - appliedCoupon.percent / 100) : subtotal;
+    if(!validateCartStock()) return;
+    let grandTotal = getCartGrandTotal();
+    if(!Number.isFinite(grandTotal) || grandTotal <= 0) {
+        SoundEngine.playError();
+        showInsufficientModal('The cart total is invalid. Check product prices and discounts.');
+        return;
+    }
 
     let stripeMode = localStorage.getItem('rf_stripe_mode') || 'real';
 
@@ -1946,24 +2028,32 @@ window.openCardOnFileModal = function() {
         showInsufficientModal('This customer has no credit cards on file.');
         return;
     }
+    if(!validateCartStock()) return;
 
-    let subtotal = currentCart.reduce((sum, item) => sum + ((item.product.price * item.quantity) * (1 - (item.discount / 100))), 0);
-    let grandTotal = appliedCoupon ? subtotal * (1 - appliedCoupon.percent / 100) : subtotal;
+    let grandTotal = getCartGrandTotal();
+    if(!Number.isFinite(grandTotal) || grandTotal <= 0) {
+        SoundEngine.playError();
+        showInsufficientModal('The cart total is invalid. Check product prices and discounts.');
+        return;
+    }
 
     let container = document.getElementById('cardOnFileSelectionList');
-    container.innerHTML = '';
+    container.innerHTML = `<p class="rounded-xl bg-slate-950 p-3 text-center text-xs text-slate-200">Purchase total: <strong class="text-emerald-400">${formatCurrency(grandTotal)}</strong></p>`;
 
     currentActiveAccount.cards.forEach((card, idx) => {
-        let isEligible = card.status === 'active' && card.balance >= grandTotal;
+        let cardBalance = Number(card.balance) || 0;
+        let isEligible = card.status === 'active' && cardBalance >= grandTotal;
+        let remaining = cardBalance - grandTotal;
         container.innerHTML += `
-            <div class="p-4 rounded-2xl bg-slate-950 border ${isEligible ? 'border-amber-500/40' : 'border-rose-500/40'} flex justify-between items-center text-xs">
-                <div>
-                    <p class="font-bold text-slate-100 font-mono">${card.number}</p>
-                    <p class="text-[10px] text-amber-400">Balance: ${formatCurrency(card.balance)} | Status: <span class="${card.status==='active'?'text-emerald-400':'text-rose-400'}">${card.status}</span></p>
+            <div class="p-4 rounded-2xl bg-slate-950 border ${isEligible ? 'border-amber-500/40' : 'border-rose-500/40'} flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center text-xs">
+                <div class="min-w-0">
+                    <p class="font-bold text-slate-100 font-mono break-all">${escapePrintHtml(card.number)}</p>
+                    <p class="text-[10px] text-slate-300 mt-1">Available: <strong>${formatCurrency(cardBalance)}</strong></p>
+                    <p class="text-[10px] text-slate-300">Charge: <strong>${formatCurrency(grandTotal)}</strong> | After purchase: <strong class="${isEligible ? 'text-emerald-400' : 'text-rose-400'}">${isEligible ? formatCurrency(remaining) : 'Not enough balance'}</strong></p>
+                    <p class="text-[10px] mt-1">Status: <span class="${card.status==='active'?'text-emerald-400':'text-rose-400'}">${escapePrintHtml(card.status || 'inactive')}</span></p>
                 </div>
                 <div class="flex gap-2">
-                    <button onclick="executeCardOnFileCheckout(${idx})" class="px-4 py-2 bg-amber-500 text-slate-950 font-bold rounded-xl text-xs pointer-events-auto">Select & Pay</button>
-                    ${!isEligible ? `<button onclick="promptForcePurchase(${idx})" class="px-3 py-2 bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold rounded-xl text-xs pointer-events-auto">Force (2285)</button>` : ''}
+                    <button onclick="executeCardOnFileCheckout(${idx})" ${isEligible ? '' : 'disabled'} class="w-full sm:w-auto px-4 py-2 ${isEligible ? 'bg-amber-500 text-slate-950' : 'bg-slate-700 text-slate-400 cursor-not-allowed'} font-bold rounded-xl text-xs pointer-events-auto">${isEligible ? 'Pay' : 'Insufficient'}</button>
                 </div>
             </div>
         `;
@@ -1972,57 +2062,34 @@ window.openCardOnFileModal = function() {
 };
 
 window.executeCardOnFileCheckout = function(cardIdx) {
+    if(!currentActiveAccount || currentCart.length === 0 || !currentActiveAccount.cards?.[cardIdx]) {
+        SoundEngine.playError();
+        showInsufficientModal('The saved card or active cart is no longer available. Scan the account and items again.');
+        return;
+    }
+    if(!validateCartStock()) return;
     let card = currentActiveAccount.cards[cardIdx];
-    let subtotal = currentCart.reduce((sum, item) => sum + ((item.product.price * item.quantity) * (1 - (item.discount / 100))), 0);
-    let grandTotal = appliedCoupon ? subtotal * (1 - appliedCoupon.percent / 100) : subtotal;
-
-    let stripeMode = localStorage.getItem('rf_stripe_mode') || 'real';
+    let grandTotal = getCartGrandTotal();
+    let cardBalance = Number(card.balance) || 0;
+    if(!Number.isFinite(grandTotal) || grandTotal <= 0) {
+        SoundEngine.playError();
+        showInsufficientModal('The cart total is invalid. Check product prices and discounts.');
+        return;
+    }
     if(card.status !== 'active') {
         SoundEngine.playError();
-        showInsufficientModal('Selected credit card is inactive.');
+        showInsufficientModal('Selected saved card is inactive.');
         return;
     }
-    if(stripeMode !== 'fake' && card.balance < grandTotal) {
+    if(cardBalance < grandTotal) {
         SoundEngine.playError();
-        showInsufficientModal(`Insufficient funds on card (${formatCurrency(card.balance)}). Use Force Purchase (PIN 2285) to bypass.`);
+        showInsufficientModal(`Insufficient saved card balance. Available: ${formatCurrency(cardBalance)}; required: ${formatCurrency(grandTotal)}.`);
         return;
     }
 
-    card.balance -= grandTotal;
-    finalizeSuccessfulCheckout(grandTotal, `Charged Card on File (${card.number})`);
+    card.balance = cardBalance - grandTotal;
     document.getElementById('cardOnFileModal').classList.add('hidden');
-};
-
-let pendingForceCardIdx = null;
-window.promptForcePurchase = function(cardIdx) {
-    pendingForceCardIdx = cardIdx;
-    document.getElementById('forcePinInput').value = '';
-    document.getElementById('forcePurchasePinModal').classList.remove('hidden');
-    setTimeout(() => { document.getElementById('forcePinInput').focus(); }, 50);
-};
-
-window.verifyForcePurchasePin = function() {
-    let pin = document.getElementById('forcePinInput').value;
-    if(pin !== '2285') {
-        SoundEngine.playError();
-        alert('Invalid Force PIN! Required: 2285');
-        return;
-    }
-
-    let subtotal = currentCart.reduce((sum, item) => sum + ((item.product.price * item.quantity) * (1 - (item.discount / 100))), 0);
-    let grandTotal = appliedCoupon ? subtotal * (1 - appliedCoupon.percent / 100) : subtotal;
-
-    if(pendingForceCardIdx !== null && currentActiveAccount && currentActiveAccount.cards[pendingForceCardIdx]) {
-        let card = currentActiveAccount.cards[pendingForceCardIdx];
-        card.balance -= grandTotal;
-        finalizeSuccessfulCheckout(grandTotal, `Force Purchased via Card on File (${card.number} - PIN 2285 Bypass)`);
-    } else {
-        finalizeSuccessfulCheckout(grandTotal, `Force Purchase Bypass (PIN 2285)`);
-    }
-
-    document.getElementById('forcePurchasePinModal').classList.add('hidden');
-    document.getElementById('cardOnFileModal').classList.add('hidden');
-    pendingForceCardIdx = null;
+    finalizeSuccessfulCheckout(grandTotal, `Paid from Saved Card Balance (${card.number})`);
 };
 
 function finalizeSuccessfulCheckout(grandTotal, txDescription) {
@@ -2058,12 +2125,13 @@ function finalizeSuccessfulCheckout(grandTotal, txDescription) {
     renderCartTable();
 
     if(typeof confetti !== 'undefined') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
-    alert(`Checkout successful for ${formatCurrency(grandTotal)}! Printing receipt...`);
-    window.print();
+    alert(`Checkout successful for ${formatCurrency(grandTotal)}!`);
 }
 
 window.checkoutWithGiftCard = function() {
     if(currentCart.length === 0) { alert('Cart is empty.'); return; }
+    if(!validateCartStock()) return;
+    document.getElementById('payGcCodeInput').value = '';
     document.getElementById('giftCardPayModal').classList.remove('hidden');
     setTimeout(() => { document.getElementById('payGcCodeInput').focus(); }, 50);
 };
@@ -2072,14 +2140,18 @@ window.executeGiftCardPayment = function() {
     let code = document.getElementById('payGcCodeInput').value.trim();
     let gc = giftCards.find(g => g.code.toLowerCase() === code.toLowerCase());
     if(!gc) { SoundEngine.playError(); showInsufficientModal('Invalid Gift Card code.'); return; }
+    if(!validateCartStock()) return;
 
-    let subtotal = currentCart.reduce((sum, item) => sum + ((item.product.price * item.quantity) * (1 - (item.discount / 100))), 0);
-    let grandTotal = appliedCoupon ? subtotal * (1 - appliedCoupon.percent / 100) : subtotal;
-
-    let stripeMode = localStorage.getItem('rf_stripe_mode') || 'real';
-    if(stripeMode !== 'fake' && gc.balance < grandTotal) {
+    let grandTotal = getCartGrandTotal();
+    let giftCardBalance = Number(gc.balance) || 0;
+    if(!Number.isFinite(grandTotal) || grandTotal <= 0) {
         SoundEngine.playError();
-        showInsufficientModal(`Gift Card balance (${formatCurrency(gc.balance)}) is insufficient.`);
+        showInsufficientModal('The cart total is invalid. Check product prices and discounts.');
+        return;
+    }
+    if(giftCardBalance < grandTotal) {
+        SoundEngine.playError();
+        showInsufficientModal(`Gift Card balance is insufficient. Available: ${formatCurrency(giftCardBalance)}; required: ${formatCurrency(grandTotal)}.`);
         return;
     }
 
@@ -2088,7 +2160,7 @@ window.executeGiftCardPayment = function() {
         if(prod) prod.stock = Math.max(0, (prod.stock || 0) - item.quantity);
     });
 
-    gc.balance -= grandTotal;
+    gc.balance = giftCardBalance - grandTotal;
     offlineTransactionQueue.push({ date: new Date().toLocaleString(), total: grandTotal, operator: currentOperator });
     saveUserData();
 
@@ -2103,11 +2175,11 @@ window.executeGiftCardPayment = function() {
 
     SoundEngine.playSuccess();
     document.getElementById('giftCardPayModal').classList.add('hidden');
+    document.getElementById('payGcCodeInput').value = '';
     currentCart = [];
     appliedCoupon = null;
     renderCartTable();
     alert(`Payment successful! GC Balance: ${formatCurrency(gc.balance)}`);
-    window.print();
 };
 
 function updateAuditStats() {
