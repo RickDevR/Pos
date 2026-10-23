@@ -564,7 +564,7 @@
             <div id="tab-settings" class="tab-content hidden space-y-4 sm:space-y-6 pointer-events-auto">
                 <div class="max-w-3xl mx-auto p-4 sm:p-8 rounded-3xl bg-slate-900/95 border border-amber-500/30 shadow-2xl pointer-events-auto">
                     <h2 class="text-lg sm:text-2xl font-black text-slate-100 mb-1">Nexus Terminal Admin Settings</h2>
-                    <p class="text-xs text-slate-400 mb-6">Manage workers, Discord Webhooks, theme mode, and Stripe Live keys.</p>
+                    <p class="text-xs text-slate-400 mb-6">Manage workers, Discord Webhooks, theme mode, and payment simulation settings.</p>
                     
                     <div id="settingsLockedBox" class="space-y-4 pointer-events-auto">
                         <div class="p-5 bg-slate-950 rounded-2xl border border-amber-500/20">
@@ -632,22 +632,11 @@
 
                         <!-- STRIPE PAYMENT GATEWAY SETTINGS -->
                         <div class="p-5 bg-slate-950 rounded-2xl border border-amber-500/20 space-y-4 pointer-events-auto">
-                            <h3 class="text-sm font-bold text-amber-300 uppercase tracking-wider">Stripe Live Real Money Gateway Config</h3>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-300 mb-1">Publishable Key</label>
-                                    <input type="text" id="stripePubInput" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 pointer-events-auto" value="pk_live_51UB59F7GI7FzkBKdzZ6tMG3dIobIZ4xYW0xM3g4rwpve1pl031XDBxlWTI7XDW7tbxkJxz1QRGpC9DPi0uuqAebC00mVrwcqko">
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-300 mb-1">Secret Key</label>
-                                    <input type="password" id="stripeSecInput" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 pointer-events-auto" value="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">
-                                </div>
-                            </div>
+                            <h3 class="text-sm font-bold text-amber-300 uppercase tracking-wider">Payment Mode</h3>
+                            <p class="text-xs text-slate-400">Only local sandbox simulation is available. Live card processing requires a secure server-side payment integration; no payment secret belongs in this browser app.</p>
                             <div>
-                                <label class="block text-xs font-bold text-slate-300 mb-1">Payment Mode</label>
                                 <select id="stripeModeSelect" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 cursor-pointer pointer-events-auto">
-                                    <option value="real">Real Money (Stripe Live Credit Cards)</option>
-                                    <option value="fake">Internal Store Credit / Fake Money (Sandbox)</option>
+                                    <option value="fake">Sandbox Simulation (No real charge)</option>
                                 </select>
                             </div>
                             <button onclick="saveStripeSettings()" class="w-full py-3 bg-amber-500 text-slate-950 font-black rounded-xl text-xs uppercase tracking-wider pointer-events-auto">Save Stripe Gateway Config</button>

@@ -32,17 +32,23 @@ let offlineTransactionQueue = [];
 let currentActiveAccount = null;
 let currentCart = [];
 let appliedCoupon = null;
+let checkoutInProgress = false;
 let pendingAction = null;
 let pendingSubOpData = null;
 let html5QrCodeScanner = null;
 let activeScanTargetId = null;
 let currentCurrency = localStorage.getItem('rf_currency') || 'USD';
 let dbListenerUnsubscribe = null;
+let lastCloudSaveError = null;
+localStorage.removeItem('rf_stripe_sec');
 
 const CurrencySymbols = { USD: '$', EUR: '€', GBP: '£', CAD: 'CA$' };
 
 function formatCurrency(amount) {
-    return `${CurrencySymbols[currentCurrency] || '$'}${amount.toFixed(2)}`;
+    let value = Number(amount);
+    return Number.isFinite(value)
+        ? `${CurrencySymbols[currentCurrency] || '$'}${value.toFixed(2)}`
+        : `${CurrencySymbols[currentCurrency] || '$'}--`;
 }
 
 function getCartGrandTotal() {
@@ -421,8 +427,9 @@ window.setAuthMode = function(mode) {
 window.handleLogin = async function(e) {
     e.preventDefault();
     let pin = document.getElementById('loginPin').value.trim();
-    if(pin.length !== 4) { SoundEngine.playError(); showInsufficientModal('Enter a valid 4-digit PIN.'); return; }
+    if(!/^\d{4}$/.test(pin)) { SoundEngine.playError(); showInsufficientModal('Enter a valid 4-digit PIN.'); return; }
 
+    try {
     if(activeAuthMode === 'main') {
         let username = document.getElementById('loginMainUser').value.trim();
         if(!username) { SoundEngine.playError(); showInsufficientModal('Enter a main owner username.'); return; }
@@ -443,8 +450,14 @@ window.handleLogin = async function(e) {
                     timeclock: [],
                     queue: []
                 };
-                await set(storeRef, initialData);
-                launchTerminalSession(username, username, true);
+                try {
+                    await set(storeRef, initialData);
+                    launchTerminalSession(username, username, true);
+                } catch(error) {
+                    SoundEngine.playError();
+                    console.error('Store creation failed:', error);
+                    showInsufficientModal(`Could not create the store. Check your database connection and try again. ${error.message}`);
+                }
             });
             return;
         } else {
@@ -490,6 +503,11 @@ window.handleLogin = async function(e) {
         }
 
         launchTerminalSession(parentUser, subUser, false);
+    }
+    } catch(error) {
+        SoundEngine.playError();
+        console.error('Login failed:', error);
+        showInsufficientModal(`Could not connect to the store database. Check your connection and try again. ${error.message}`);
     }
 };
 
@@ -625,7 +643,7 @@ function updateDashboardStats() {
     let el2 = document.getElementById('statTotalCapital');
     let el3 = document.getElementById('statTotalProducts');
     if(el1) el1.innerText = accounts.length;
-    let totalCap = accounts.reduce((acc, curr) => acc + curr.balance, 0);
+    let totalCap = accounts.reduce((total, account) => total + (Number(account.balance) || 0), 0);
     if(el2) el2.innerText = formatCurrency(totalCap);
     if(el3) el3.innerText = products.length;
 }
@@ -675,6 +693,13 @@ window.handleAccountFormSubmit = function(e) {
     let membershipTier = document.getElementById('newAccMembership').value;
     let fileInput = document.getElementById('accImageFile');
 
+    if(accounts.some(account =>
+        account.number.toLowerCase() === number.toLowerCase() && account.number !== oldNum
+    )) {
+        SoundEngine.playError();
+        showInsufficientModal(`Account number "${number}" is already in use.`);
+        return;
+    }
     if(!Number.isFinite(balance) || balance < 0 || (cardNum && (!Number.isFinite(cardBal) || cardBal < 0))) {
         SoundEngine.playError();
         showInsufficientModal('Account and card balances must be valid amounts of zero or more.');
@@ -692,7 +717,9 @@ window.handleAccountFormSubmit = function(e) {
                 acc.name = name;
                 acc.email = email;
                 acc.balance = balance;
-                acc.cards = cardsList;
+                acc.cards = cardsList.length && acc.cards?.length
+                    ? [{ ...acc.cards[0], ...cardsList[0] }, ...acc.cards.slice(1)]
+                    : cardsList;
                 acc.info = info;
                 acc.membershipTier = membershipTier;
                 if(imgData) acc.image = imgData;
@@ -841,16 +868,38 @@ function printRecords(title, records) {
         let fields = record.fields.map(field =>
             `<div class="field"><span>${escapePrintHtml(field.label)}</span><strong>${escapePrintHtml(field.value)}</strong></div>`
         ).join('');
+        let vipBadge = record.type.includes('vip');
+        let vipDetails = record.fields
+            .filter(field => !['Membership', 'Account ID', 'Balance'].includes(field.label))
+            .map(field => `<div class="field"><span>${escapePrintHtml(field.label)}</span><strong>${escapePrintHtml(field.value)}</strong></div>`)
+            .join('');
         cards.push(`
-            <article class="print-card ${record.type}">
-                <div class="card-heading">
-                    ${image}
-                    <div><div class="record-type">${escapePrintHtml(record.heading)}</div>
-                    <h2>${escapePrintHtml(record.name)}</h2></div>
-                </div>
-                <div class="fields">${fields}</div>
-                <div class="barcode">${barcode}</div>
-            </article>
+            ${vipBadge ? `
+                <article class="print-card ${record.type}">
+                    <div class="vip-brand">NEXUS LUXURY ENTERPRISE</div>
+                    <div class="vip-subtitle">VIP CUSTOMER MEMBERSHIP ID BADGE</div>
+                    <div class="vip-avatar">
+                        ${record.image
+                            ? `<img src="${escapePrintHtml(record.image)}" alt="">`
+                            : `<span>${escapePrintHtml(String(record.name).charAt(0).toUpperCase())}</span>`}
+                    </div>
+                    <h2 class="vip-name">${escapePrintHtml(record.name)}</h2>
+                    <div class="vip-balance">Balance: ${escapePrintHtml(record.balance)}</div>
+                    <div class="vip-details">${vipDetails}</div>
+                    <div class="vip-barcode">${barcode}<strong>${escapePrintHtml(record.code)}</strong></div>
+                    <div class="vip-tagline">Scan barcode at terminal for instant account access.</div>
+                </article>
+            ` : `
+                <article class="print-card ${record.type}">
+                    <div class="card-heading">
+                        ${image}
+                        <div><div class="record-type">${escapePrintHtml(record.heading)}</div>
+                        <h2>${escapePrintHtml(record.name)}</h2></div>
+                    </div>
+                    <div class="fields">${fields}</div>
+                    <div class="barcode">${barcode}</div>
+                </article>
+            `}
         `);
     }
 
@@ -866,8 +915,20 @@ function printRecords(title, records) {
             header p { margin: 0; color: #4b5563; font-size: 10px; }
             .print-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
             .print-card { min-width: 0; break-inside: avoid; page-break-inside: avoid; border: 1px solid #9ca3af; border-radius: 8px; padding: 10px; }
-                    .print-card.vip { border: 2px solid #b7791f; background: #fffbeb; }
-                    .print-card.vip .record-type { color: #92400e; }
+            .print-card.vip { min-height: 102mm; border: 2px solid #f59e0b; border-radius: 14px; background: #fff; padding: 10mm 8mm 7mm; text-align: center; display: flex; flex-direction: column; align-items: center; }
+            .vip-brand { color: #f59e0b; font-size: 13px; font-weight: 800; letter-spacing: .08em; }
+            .vip-subtitle { margin-top: 5px; color: #475569; font-size: 8px; text-transform: uppercase; }
+            .vip-avatar { width: 65px; height: 65px; margin: 13px auto 7px; border: 2px solid #f59e0b; border-radius: 50%; display: flex; justify-content: center; align-items: center; overflow: hidden; color: #f59e0b; font-size: 30px; }
+            .vip-avatar img { width: 100%; height: 100%; object-fit: cover; }
+            .vip-name { max-width: 100%; color: #334155; font-size: 15px; overflow-wrap: anywhere; }
+            .vip-balance { margin-top: 6px; color: #059669; font-size: 11px; font-weight: 800; }
+            .vip-details { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 8px; margin: 8px 0; text-align: left; }
+            .vip-details .field span { font-size: 7px; }
+            .vip-details .field strong { font-size: 8px; }
+            .vip-barcode { width: 100%; margin-top: auto; padding: 7px 5px 3px; border: 1px solid #fed7aa; border-radius: 8px; }
+            .vip-barcode svg { max-width: 100%; height: auto; }
+            .vip-barcode strong { display: block; color: #c2410c; font: bold 8px monospace; letter-spacing: .08em; }
+            .vip-tagline { margin-top: 7px; color: #475569; font-size: 7px; }
             .card-heading { display: flex; align-items: center; gap: 9px; min-height: 36px; }
             .record-image { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; }
             .record-type { color: #4b5563; font-size: 8px; font-weight: bold; letter-spacing: .08em; text-transform: uppercase; }
@@ -906,7 +967,8 @@ function accountPrintRecord(account) {
             ...(account.cards?.length ? [
                 { label: 'Saved card balance', value: formatCurrency(Number(account.cards[0].balance) || 0) }
             ] : [])
-        ]
+        ],
+        balance: formatCurrency(Number(account.balance) || 0)
     };
 }
 
@@ -996,18 +1058,22 @@ function renderAccountsList(filter = '') {
         let accountIndex = accounts.indexOf(acc);
         let cardSummary = acc.cards && acc.cards.length > 0 ? `${acc.cards.length} Card(s) on File` : 'No Cards';
         let img = acc.image || '';
+        let safeImage = escapePrintHtml(img);
+        let safeNumber = escapePrintHtml(acc.number);
+        let safeName = escapePrintHtml(acc.name);
+        let safeEmail = escapePrintHtml(acc.email || '');
         container.innerHTML += `
             <div class="p-5 sm:p-6 rounded-3xl bg-slate-900/60 backdrop-blur-2xl border ${accountMembershipTier(acc) === 'vip' ? 'border-amber-400/60' : 'border-amber-500/20'} hover:border-amber-500/55 transition-all flex flex-col justify-between space-y-4 shadow-xl pointer-events-auto">
                 <div>
                     <div class="flex items-center gap-3 mb-3">
-                        ${img ? `<img src="${img}" class="w-12 h-12 rounded-full object-cover border-2 border-amber-500/50 shrink-0">` : `<div class="w-12 h-12 rounded-full bg-amber-500/20 text-amber-300 font-bold flex items-center justify-center text-lg shrink-0 border-2 border-amber-500/40">${acc.name.charAt(0)}</div>`}
+                        ${img ? `<img src="${safeImage}" class="w-12 h-12 rounded-full object-cover border-2 border-amber-500/50 shrink-0">` : `<div class="w-12 h-12 rounded-full bg-amber-500/20 text-amber-300 font-bold flex items-center justify-center text-lg shrink-0 border-2 border-amber-500/40">${escapePrintHtml(acc.name.charAt(0))}</div>`}
                         <div>
-                            <span class="text-xs font-mono text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-xl border border-amber-500/25">${acc.number}</span>
+                            <span class="text-xs font-mono text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-xl border border-amber-500/25">${safeNumber}</span>
                             ${accountMembershipTier(acc) === 'vip' ? '<span class="text-[9px] font-black uppercase tracking-wider text-amber-200 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-400/40">VIP</span>' : ''}
-                            <h3 class="text-base sm:text-lg font-bold text-slate-100 mt-0.5">${acc.name}</h3>
+                            <h3 class="text-base sm:text-lg font-bold text-slate-100 mt-0.5">${safeName}</h3>
                         </div>
                     </div>
-                    <p class="text-xs text-slate-400">${acc.email}</p>
+                    <p class="text-xs text-slate-400">${safeEmail}</p>
                     <p class="text-emerald-400 font-black text-lg my-1">${formatCurrency(acc.balance)}</p>
                     <div class="my-2 flex justify-center bg-slate-950 p-2 rounded-xl border border-white/5">
                         <svg class="barcode-svg" data-code="${acc.number}"></svg>
@@ -1018,10 +1084,10 @@ function renderAccountsList(filter = '') {
                     </div>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                    <button onclick="loadAccountByNumber('${acc.number}')" class="flex-1 py-2.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold rounded-xl text-xs hover:bg-amber-500/35 transition-all pointer-events-auto">Load</button>
+                    <button onclick="loadAccountByIndex(${accountIndex})" class="flex-1 py-2.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold rounded-xl text-xs hover:bg-amber-500/35 transition-all pointer-events-auto">Load</button>
                     <button onclick="printAccountByIndex(${accountIndex})" class="px-3 py-2.5 bg-sky-500/20 text-sky-300 rounded-xl text-xs font-bold pointer-events-auto">Print</button>
-                    <button onclick="editAccount('${acc.number}')" class="px-3 py-2.5 bg-indigo-500/20 text-indigo-300 rounded-xl text-xs font-bold pointer-events-auto">Edit</button>
-                    ${isMainOpSession ? `<button onclick="deleteAccount('${acc.number}')" class="px-3 py-2.5 bg-rose-500/20 text-rose-300 rounded-xl text-xs font-bold pointer-events-auto"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
+                    <button onclick="editAccountByIndex(${accountIndex})" class="px-3 py-2.5 bg-indigo-500/20 text-indigo-300 rounded-xl text-xs font-bold pointer-events-auto">Edit</button>
+                    ${isMainOpSession ? `<button onclick="deleteAccountByIndex(${accountIndex})" class="px-3 py-2.5 bg-rose-500/20 text-rose-300 rounded-xl text-xs font-bold pointer-events-auto"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
                 </div>
             </div>
         `;
@@ -1038,9 +1104,26 @@ function renderAccountsList(filter = '') {
 
 window.filterAccountList = function(val) { renderAccountsList(val); };
 
+window.loadAccountByIndex = function(index) {
+    let account = accounts[index];
+    if(account) loadAccountByNumber(account.number);
+};
+
+window.editAccountByIndex = function(index) {
+    let account = accounts[index];
+    if(account) editAccount(account.number);
+};
+
+window.deleteAccountByIndex = function(index) {
+    let account = accounts[index];
+    if(account) deleteAccount(account.number);
+};
+
 window.loadAccountByNumber = function(num) {
     let acc = accounts.find(a => a.number.toLowerCase() === num.toLowerCase());
     if(!acc) { SoundEngine.playError(); showInsufficientModal(`Account number "${num}" not found.`); return; }
+    if(!Array.isArray(acc.history)) acc.history = [];
+    if(!Array.isArray(acc.cards)) acc.cards = [];
     currentActiveAccount = acc;
     currentCart = [];
     appliedCoupon = null;
@@ -1082,7 +1165,7 @@ function renderModalHistory() {
     let container = document.getElementById('modalHistoryList');
     if(!container) return;
     container.innerHTML = '';
-    currentActiveAccount.history.slice().reverse().forEach(h => {
+    (Array.isArray(currentActiveAccount?.history) ? currentActiveAccount.history : []).slice().reverse().forEach(h => {
         container.innerHTML += `
             <div class="p-3 rounded-2xl bg-slate-900 border border-white/5 text-xs flex justify-between items-center shadow-inner">
                 <span class="text-slate-300 font-medium">${h.text}</span>
@@ -1190,8 +1273,22 @@ window.handleProductFormSubmit = function(e) {
     let number = document.getElementById('prodNumber').value.trim();
     let name = document.getElementById('prodName').value.trim();
     let price = parseFloat(document.getElementById('prodPrice').value);
-    let stock = parseInt(document.getElementById('prodStock').value) || 0;
+    let stock = Number(document.getElementById('prodStock').value);
     let fileInput = document.getElementById('prodImageFile');
+
+    if(!number || !name || !Number.isFinite(price) || price <= 0 ||
+        !Number.isInteger(stock) || stock < 0) {
+        SoundEngine.playError();
+        showInsufficientModal('Enter a product barcode, name, positive price, and whole-number stock quantity of zero or more.');
+        return;
+    }
+    if(products.some(product =>
+        product.number.toLowerCase() === number.toLowerCase() && product.number !== oldNum
+    )) {
+        SoundEngine.playError();
+        showInsufficientModal(`Product barcode "${number}" is already in use.`);
+        return;
+    }
 
     let reader = new FileReader();
     let saveProd = (imgData = '') => {
@@ -1269,6 +1366,16 @@ window.deleteProduct = function(num) {
     });
 };
 
+window.editProductByIndex = function(index) {
+    let product = products[index];
+    if(product) editProduct(product.number);
+};
+
+window.deleteProductByIndex = function(index) {
+    let product = products[index];
+    if(product) deleteProduct(product.number);
+};
+
 function renderProductsList() {
     let container = document.getElementById('productsListContainer');
     if(!container) return;
@@ -1277,22 +1384,23 @@ function renderProductsList() {
     
     products.forEach((p, index) => {
         let isLowStock = (p.stock || 0) <= 5;
+        let safeNumber = escapePrintHtml(p.number);
         container.innerHTML += `
             <div class="p-4 rounded-3xl bg-slate-900/65 backdrop-blur-2xl border ${isLowStock ? 'border-rose-500/50 animate-pulse' : 'border-amber-500/20'} flex flex-col sm:flex-row items-center justify-between shadow-lg gap-3 pointer-events-auto">
                 <div class="flex items-center gap-3 w-full sm:w-auto">
-                    <svg class="barcode-svg" data-code="${p.number}"></svg>
+                    <svg class="barcode-svg" data-code="${safeNumber}"></svg>
                     <div>
                         <div class="flex items-center gap-2">
-                            <h4 class="font-bold text-slate-100 text-sm">${p.name}</h4>
+                            <h4 class="font-bold text-slate-100 text-sm">${escapePrintHtml(p.name)}</h4>
                             ${isLowStock ? `<span class="bg-rose-500/20 text-rose-300 text-[9px] font-bold px-2 py-0.5 rounded-full border border-rose-500/40">LOW (${p.stock})</span>` : ''}
                         </div>
-                        <p class="text-xs text-amber-400 font-mono mt-0.5">SKU: ${p.number} | <strong class="text-emerald-400">${formatCurrency(p.price)}</strong> | Stock: ${p.stock || 0}</p>
+                        <p class="text-xs text-amber-400 font-mono mt-0.5">SKU: ${safeNumber} | <strong class="text-emerald-400">${formatCurrency(p.price)}</strong> | Stock: ${escapePrintHtml(p.stock || 0)}</p>
                     </div>
                 </div>
                 <div class="flex gap-2 w-full sm:w-auto justify-end">
-                    <button onclick="editProduct('${p.number}')" class="px-3 py-2 bg-sky-500/20 text-sky-300 rounded-xl text-xs font-bold pointer-events-auto">Edit</button>
+                    <button onclick="editProductByIndex(${index})" class="px-3 py-2 bg-sky-500/20 text-sky-300 rounded-xl text-xs font-bold pointer-events-auto">Edit</button>
                     <button onclick="printProductByIndex(${index})" class="px-3 py-2 bg-amber-500/20 text-amber-300 rounded-xl text-xs font-bold pointer-events-auto">Print</button>
-                    ${isMainOpSession ? `<button onclick="deleteProduct('${p.number}')" class="px-3 py-2 bg-rose-500/20 text-rose-300 rounded-xl text-xs font-bold pointer-events-auto">Delete</button>` : ''}
+                    ${isMainOpSession ? `<button onclick="deleteProductByIndex(${index})" class="px-3 py-2 bg-rose-500/20 text-rose-300 rounded-xl text-xs font-bold pointer-events-auto">Delete</button>` : ''}
                 </div>
             </div>
         `;
@@ -1331,6 +1439,19 @@ window.handleCouponFormSubmit = function(e) {
     let code = document.getElementById('couponCode').value.trim();
     let name = document.getElementById('couponName').value.trim();
     let percent = parseFloat(document.getElementById('couponPercent').value);
+
+    if(!code || !name || !Number.isFinite(percent) || percent < 1 || percent > 100) {
+        SoundEngine.playError();
+        showInsufficientModal('Enter a coupon code, name, and discount between 1% and 100%.');
+        return;
+    }
+    if(coupons.some(coupon =>
+        coupon.code.toLowerCase() === code.toLowerCase() && coupon.code !== oldCode
+    )) {
+        SoundEngine.playError();
+        showInsufficientModal(`Coupon code "${code}" is already in use.`);
+        return;
+    }
 
     if(oldCode) {
         let c = coupons.find(x => x.code === oldCode);
@@ -1375,20 +1496,30 @@ window.deleteCoupon = function(code) {
     });
 };
 
+window.editCouponByIndex = function(index) {
+    let coupon = coupons[index];
+    if(coupon) editCoupon(coupon.code);
+};
+
+window.deleteCouponByIndex = function(index) {
+    let coupon = coupons[index];
+    if(coupon) deleteCoupon(coupon.code);
+};
+
 function renderCouponsList() {
     let container = document.getElementById('couponsListContainer');
     if(!container) return;
     container.innerHTML = '';
-    coupons.forEach(c => {
+    coupons.forEach((c, index) => {
         container.innerHTML += `
             <div class="p-4 rounded-3xl bg-slate-900/60 border border-amber-500/20 flex items-center justify-between shadow-lg">
                 <div>
-                    <h4 class="font-bold text-slate-100 text-sm">${c.name} (${c.percent}% Off)</h4>
-                    <p class="text-xs text-amber-400 font-mono mt-0.5">Code: ${c.code}</p>
+                    <h4 class="font-bold text-slate-100 text-sm">${escapePrintHtml(c.name)} (${escapePrintHtml(c.percent)}% Off)</h4>
+                    <p class="text-xs text-amber-400 font-mono mt-0.5">Code: ${escapePrintHtml(c.code)}</p>
                 </div>
                 <div class="flex gap-2">
-                    <button onclick="editCoupon('${c.code}')" class="px-3 py-1.5 bg-sky-500/20 text-sky-300 rounded-xl text-xs font-bold">Edit</button>
-                    <button onclick="deleteCoupon('${c.code}')" class="px-3 py-1.5 bg-rose-500/20 text-rose-300 rounded-xl text-xs font-bold">Delete</button>
+                    <button onclick="editCouponByIndex(${index})" class="px-3 py-1.5 bg-sky-500/20 text-sky-300 rounded-xl text-xs font-bold">Edit</button>
+                    <button onclick="deleteCouponByIndex(${index})" class="px-3 py-1.5 bg-rose-500/20 text-rose-300 rounded-xl text-xs font-bold">Delete</button>
                 </div>
             </div>
         `;
@@ -1401,6 +1532,19 @@ window.handleGCFormSubmit = function(e) {
     let code = document.getElementById('gcCode').value.trim();
     let name = document.getElementById('gcName').value.trim();
     let balance = parseFloat(document.getElementById('gcBalance').value);
+
+    if(!code || !name || !Number.isFinite(balance) || balance < 0) {
+        SoundEngine.playError();
+        showInsufficientModal('Enter a gift card code, recipient name, and balance of zero or more.');
+        return;
+    }
+    if(giftCards.some(card =>
+        card.code.toLowerCase() === code.toLowerCase() && card.code !== oldCode
+    )) {
+        SoundEngine.playError();
+        showInsufficientModal(`Gift card code "${code}" is already in use.`);
+        return;
+    }
 
     if(oldCode) {
         let g = giftCards.find(x => x.code === oldCode);
@@ -1455,16 +1599,16 @@ function renderGiftCardsList() {
         container.innerHTML += `
             <div class="p-4 rounded-3xl bg-slate-900/60 border border-amber-500/20 flex flex-col sm:flex-row items-center justify-between shadow-lg gap-3">
                 <div class="flex items-center gap-3 w-full sm:w-auto">
-                    <svg class="barcode-svg" data-code="${g.code}"></svg>
+                    <svg class="barcode-svg" data-code="${escapePrintHtml(g.code)}"></svg>
                     <div>
-                        <h4 class="font-bold text-slate-100 text-sm">${g.name}</h4>
-                        <p class="text-xs text-amber-400 font-mono mt-0.5">Code: ${g.code} | <strong class="text-emerald-400">${formatCurrency(g.balance)}</strong></p>
+                        <h4 class="font-bold text-slate-100 text-sm">${escapePrintHtml(g.name)}</h4>
+                        <p class="text-xs text-amber-400 font-mono mt-0.5">Code: ${escapePrintHtml(g.code)} | <strong class="text-emerald-400">${formatCurrency(g.balance)}</strong></p>
                     </div>
                 </div>
                 <div class="flex gap-2 w-full sm:w-auto justify-end">
-                    <button onclick="editGiftCard('${g.code}')" class="px-3 py-1.5 bg-sky-500/20 text-sky-300 rounded-xl text-xs font-bold">Edit</button>
+                    <button onclick="editGiftCardByIndex(${index})" class="px-3 py-1.5 bg-sky-500/20 text-sky-300 rounded-xl text-xs font-bold">Edit</button>
                     <button onclick="printGiftCardByIndex(${index})" class="px-3 py-1.5 bg-amber-500/20 text-amber-300 rounded-xl text-xs font-bold">Print</button>
-                    <button onclick="deleteGiftCard('${g.code}')" class="px-3 py-1.5 bg-rose-500/20 text-rose-300 rounded-xl text-xs font-bold">Delete</button>
+                    <button onclick="deleteGiftCardByIndex(${index})" class="px-3 py-1.5 bg-rose-500/20 text-rose-300 rounded-xl text-xs font-bold">Delete</button>
                 </div>
             </div>
         `;
@@ -1483,6 +1627,16 @@ window.printGiftCardByIndex = function(index) {
     if(giftCard) printRecords('Gift Card', [giftCardPrintRecord(giftCard)]);
 };
 
+window.editGiftCardByIndex = function(index) {
+    let giftCard = giftCards[index];
+    if(giftCard) editGiftCard(giftCard.code);
+};
+
+window.deleteGiftCardByIndex = function(index) {
+    let giftCard = giftCards[index];
+    if(giftCard) deleteGiftCard(giftCard.code);
+};
+
 // --- EMPLOYEE & CASHIER ID BADGE MANAGEMENT ---
 window.handleEmployeeFormSubmit = function(e) {
     e.preventDefault();
@@ -1493,6 +1647,26 @@ window.handleEmployeeFormSubmit = function(e) {
     let barcode = document.getElementById('empBarcode').value.trim() || ('EMP-' + Math.floor(10000 + Math.random() * 90000));
     let password = document.getElementById('empPassword').value.trim() || Math.floor(1000 + Math.random() * 9000).toString();
     let fileInput = document.getElementById('empImageFile');
+
+    if(!name || !role || !Number.isFinite(rate) || rate < 0) {
+        SoundEngine.playError();
+        showInsufficientModal('Enter an employee name, role, and hourly rate of zero or more.');
+        return;
+    }
+    if(employees.some(employee =>
+        employee.name.toLowerCase() === name.toLowerCase() && employee.name !== oldName
+    )) {
+        SoundEngine.playError();
+        showInsufficientModal(`Employee "${name}" is already registered.`);
+        return;
+    }
+    if(employees.some(employee =>
+        (employee.barcode || '').toLowerCase() === barcode.toLowerCase() && employee.name !== oldName
+    )) {
+        SoundEngine.playError();
+        showInsufficientModal(`Cashier ID "${barcode}" is already in use.`);
+        return;
+    }
 
     let reader = new FileReader();
     let saveEmp = (imgData = '') => {
@@ -1562,18 +1736,39 @@ window.deleteEmployee = function(name) {
     });
 };
 
+window.printEmployeeBadgeByIndex = function(index) {
+    let employee = employees[index];
+    if(employee) printCashierBadge(employee.name, employee.role, employee.barcode || 'EMP-1001', employee.password || '1234', employee.image || '');
+};
+
+window.editEmployeeByIndex = function(index) {
+    let employee = employees[index];
+    if(employee) editEmployee(employee.name);
+};
+
+window.deleteEmployeeByIndex = function(index) {
+    let employee = employees[index];
+    if(employee) deleteEmployee(employee.name);
+};
+
 window.printCashierBadge = function(name, role, barcode, password, imgData) {
     let win = window.open('', '', 'height=650,width=450');
     if(!win) return;
+    let safeName = escapePrintHtml(name);
+    let safeRole = escapePrintHtml(role);
+    let safeBarcode = escapePrintHtml(barcode);
+    let safePassword = escapePrintHtml(password);
+    let safeImage = escapePrintHtml(imgData || '');
+    let barcodeJson = JSON.stringify(String(barcode)).replace(/</g, '\\u003c');
     win.document.write(`<html><head><title>Cashier ID Badge</title></head>
     <body style="font-family:sans-serif;text-align:center;padding:30px;background:#0f172a;color:#f8fafc;">
         <div style="border:3px solid #f59e0b;border-radius:24px;padding:30px;background:#1e293b;max-width:350px;margin:0 auto;box-shadow:0 10px 25px rgba(0,0,0,0.5);">
             <h2 style="color:#f59e0b;margin-bottom:5px;font-size:18px;letter-spacing:1px;">NEXUS LUXURY ENTERPRISE</h2>
             <p style="color:#94a3b8;font-size:11px;margin-bottom:20px;text-transform:uppercase;">Official Cashier Security ID Badge</p>
-            ${imgData ? `<img src="${imgData}" style="width:110px;height:110px;border-radius:50%;object-fit:cover;border:3px solid #f59e0b;margin-bottom:15px;" />` : `<div style="width:110px;height:110px;border-radius:50%;background:#334155;color:#f59e0b;display:flex;align-items:center;justify-content:center;font-size:40px;margin:0 auto 15px auto;border:3px solid #f59e0b;">${name.charAt(0)}</div>`}
-            <h3 style="font-size:22px;margin:5px 0;color:#ffffff;">${name}</h3>
-            <p style="color:#38bdf8;font-size:13px;font-weight:bold;margin-bottom:15px;">${role}</p>
-            <p style="color:#cbd5e1;font-size:12px;font-mono;margin-bottom:15px;">ID: <strong>${barcode}</strong> | PIN: <strong>${password}</strong></p>
+            ${imgData ? `<img src="${safeImage}" style="width:110px;height:110px;border-radius:50%;object-fit:cover;border:3px solid #f59e0b;margin-bottom:15px;" />` : `<div style="width:110px;height:110px;border-radius:50%;background:#334155;color:#f59e0b;display:flex;align-items:center;justify-content:center;font-size:40px;margin:0 auto 15px auto;border:3px solid #f59e0b;">${escapePrintHtml(String(name).charAt(0))}</div>`}
+            <h3 style="font-size:22px;margin:5px 0;color:#ffffff;">${safeName}</h3>
+            <p style="color:#38bdf8;font-size:13px;font-weight:bold;margin-bottom:15px;">${safeRole}</p>
+            <p style="color:#cbd5e1;font-size:12px;font-mono;margin-bottom:15px;">ID: <strong>${safeBarcode}</strong> | PIN: <strong>${safePassword}</strong></p>
             <div style="background:#0f172a;padding:15px;border-radius:12px;display:inline-block;border:1px solid rgba(245,158,11,0.3);">
                 <svg id="cashierBadgeSvg"></svg>
             </div>
@@ -1582,7 +1777,7 @@ window.printCashierBadge = function(name, role, barcode, password, imgData) {
         <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
         <script>
             try {
-                JsBarcode('#cashierBadgeSvg', '${barcode}', { format: 'CODE128', lineColor: '#f59e0b', background: 'transparent', width: 2, height: 50, displayValue: true, fontSize: 12, fontOptions: 'bold' });
+                JsBarcode('#cashierBadgeSvg', ${barcodeJson}, { format: 'CODE128', lineColor: '#f59e0b', background: 'transparent', width: 2, height: 50, displayValue: true, fontSize: 12, fontOptions: 'bold' });
             } catch(e) {}
             window.print();
             window.close();
@@ -1599,23 +1794,23 @@ function renderPayrollList() {
         container.innerHTML = `<div class="text-center py-8 text-slate-500 text-xs">No employees or cashiers registered.</div>`;
         return;
     }
-    employees.forEach(emp => {
+    employees.forEach((emp, index) => {
         let bcode = emp.barcode || 'EMP-1001';
         let pass = emp.password || '1234';
         let img = emp.image || '';
         container.innerHTML += `
             <div class="p-4 rounded-3xl bg-slate-900/60 border border-amber-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-lg gap-4">
                 <div class="flex items-center gap-4">
-                    ${img ? `<img src="${img}" class="w-12 h-12 rounded-2xl object-cover border border-amber-500/40">` : `<div class="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-300 font-bold flex items-center justify-center text-lg">${emp.name.charAt(0)}</div>`}
+                    ${img ? `<img src="${escapePrintHtml(img)}" class="w-12 h-12 rounded-2xl object-cover border border-amber-500/40">` : `<div class="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-300 font-bold flex items-center justify-center text-lg">${escapePrintHtml(emp.name.charAt(0))}</div>`}
                     <div>
-                        <h4 class="font-bold text-slate-100 text-sm">${emp.name} (${emp.role})</h4>
-                        <p class="text-xs text-emerald-400 font-mono mt-0.5">Rate: ${formatCurrency(emp.rate)}/hr | ID: ${bcode} | PIN: ${pass}</p>
+                        <h4 class="font-bold text-slate-100 text-sm">${escapePrintHtml(emp.name)} (${escapePrintHtml(emp.role)})</h4>
+                        <p class="text-xs text-emerald-400 font-mono mt-0.5">Rate: ${formatCurrency(emp.rate)}/hr | ID: ${escapePrintHtml(bcode)} | PIN: ${escapePrintHtml(pass)}</p>
                     </div>
                 </div>
                 <div class="flex gap-2 w-full sm:w-auto justify-end">
-                    <button onclick="printCashierBadge('${emp.name}', '${emp.role}', '${bcode}', '${pass}', '${img}')" class="px-3 py-2 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold">Print Badge</button>
-                    <button onclick="editEmployee('${emp.name}')" class="px-3 py-2 bg-sky-500/20 text-sky-300 rounded-xl text-xs font-bold">Edit</button>
-                    <button onclick="deleteEmployee('${emp.name}')" class="px-3 py-2 bg-rose-500/20 text-rose-300 rounded-xl text-xs font-bold">Remove</button>
+                    <button onclick="printEmployeeBadgeByIndex(${index})" class="px-3 py-2 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold">Print Badge</button>
+                    <button onclick="editEmployeeByIndex(${index})" class="px-3 py-2 bg-sky-500/20 text-sky-300 rounded-xl text-xs font-bold">Edit</button>
+                    <button onclick="deleteEmployeeByIndex(${index})" class="px-3 py-2 bg-rose-500/20 text-rose-300 rounded-xl text-xs font-bold">Remove</button>
                 </div>
             </div>
         `;
@@ -1630,14 +1825,14 @@ function renderSubOperatorsList() {
         container.innerHTML = `<p class="text-xs text-slate-500">No sub-operators registered yet.</p>`;
         return;
     }
-    subOperators.forEach(sub => {
+    subOperators.forEach((sub, index) => {
         container.innerHTML += `
             <div class="p-3 bg-slate-950 rounded-xl border border-white/5 flex justify-between items-center text-xs">
                 <div>
-                    <span class="font-bold text-slate-100">${sub.username}</span>
+                    <span class="font-bold text-slate-100">${escapePrintHtml(sub.username)}</span>
                     <span class="text-amber-400 font-mono ml-2">PIN: ••••</span>
                 </div>
-                ${isMainOpSession ? `<button onclick="deleteSubOperator('${sub.username}')" class="px-3 py-1 bg-rose-500/20 text-rose-300 rounded-lg font-bold">Remove</button>` : ''}
+                ${isMainOpSession ? `<button onclick="deleteSubOperatorByIndex(${index})" class="px-3 py-1 bg-rose-500/20 text-rose-300 rounded-lg font-bold">Remove</button>` : ''}
             </div>
         `;
     });
@@ -1694,6 +1889,11 @@ window.deleteSubOperator = function(username) {
         subOperators = subOperators.filter(s => s.username !== username);
         saveUserData();
     });
+};
+
+window.deleteSubOperatorByIndex = function(index) {
+    let subOperator = subOperators[index];
+    if(subOperator) deleteSubOperator(subOperator.username);
 };
 
 window.confirmDeleteStoreOwner = function() {
@@ -1800,7 +2000,7 @@ function renderTimeclockSelect() {
         return;
     }
     employees.forEach(emp => {
-        select.innerHTML += `<option value="${emp.name}">${emp.name} (${emp.role})</option>`;
+        select.innerHTML += `<option value="${escapePrintHtml(emp.name)}">${escapePrintHtml(emp.name)} (${escapePrintHtml(emp.role)})</option>`;
     });
 }
 
@@ -1850,13 +2050,19 @@ window.closeConfirmationModal = function() {
 window.processGranularReturn = function() {
     let accNum = document.getElementById('returnAccNum').value.trim();
     let prodNum = document.getElementById('returnProdNum').value.trim();
-    let qty = parseInt(document.getElementById('returnQty').value) || 1;
-    let customAmt = parseFloat(document.getElementById('returnCustomAmount').value);
+    let qty = Number(document.getElementById('returnQty').value);
+    let customAmountInput = document.getElementById('returnCustomAmount').value.trim();
+    let customAmt = customAmountInput === '' ? NaN : Number(customAmountInput);
 
     let acc = accounts.find(a => a.number === accNum);
     let prod = products.find(p => p.number === prodNum);
 
-    if(!acc || !prod) { SoundEngine.playError(); showInsufficientModal('Invalid customer account number or product item number.'); return; }
+    if(!acc || !prod || !Number.isInteger(qty) || qty <= 0 ||
+        (customAmountInput !== '' && (!Number.isFinite(customAmt) || customAmt <= 0))) {
+        SoundEngine.playError();
+        showInsufficientModal('Enter a valid account, product, whole-number return quantity greater than zero, and optional refund amount greater than zero.');
+        return;
+    }
 
     let refundVal = !isNaN(customAmt) && customAmt > 0 ? customAmt : (prod.price * qty);
 
@@ -1952,10 +2158,18 @@ window.removeCartItem = function(idx) {
 function validateCartStock() {
     for(let item of currentCart) {
         let product = products.find(entry => entry.number === item.product.number);
-        let available = Number(product?.stock) || 0;
         if(!product) {
             SoundEngine.playError();
             showInsufficientModal(`Product "${item.product.name}" is no longer in inventory. Remove it from the cart before checkout.`);
+            return false;
+        }
+        let available = Number(product.stock);
+        let price = Number(product.price);
+        if(!Number.isFinite(available) || available < 0 || !Number.isFinite(price) || price <= 0 ||
+            !Number.isInteger(item.quantity) || item.quantity <= 0 ||
+            !Number.isFinite(item.discount) || item.discount < 0 || item.discount > 100) {
+            SoundEngine.playError();
+            showInsufficientModal(`Product "${product.name}" has invalid price, stock, quantity, or discount data. Correct the item before checkout.`);
             return false;
         }
         if(available < item.quantity) {
@@ -1969,16 +2183,22 @@ function validateCartStock() {
     return true;
 }
 
-window.checkoutWithAccountBalance = function() {
+window.checkoutWithAccountBalance = async function() {
+    if(checkoutInProgress) return;
     if(currentCart.length === 0) { alert('Cart is empty. Scan items first.'); return; }
     if(!currentActiveAccount) { SoundEngine.playError(); showInsufficientModal('No customer account loaded. Please load an account first.'); return; }
     if(!validateCartStock()) return;
 
     let grandTotal = getCartGrandTotal();
-    let availableBalance = Number(currentActiveAccount.balance) || 0;
+    let availableBalance = Number(currentActiveAccount.balance);
     if(!Number.isFinite(grandTotal) || grandTotal <= 0) {
         SoundEngine.playError();
         showInsufficientModal('The cart total is invalid. Check product prices and discounts.');
+        return;
+    }
+    if(!Number.isFinite(availableBalance) || availableBalance < 0) {
+        SoundEngine.playError();
+        showInsufficientModal('This account has an invalid balance. Correct the account balance before checkout.');
         return;
     }
     if(availableBalance < grandTotal) {
@@ -1987,11 +2207,15 @@ window.checkoutWithAccountBalance = function() {
         return;
     }
 
-    currentActiveAccount.balance = availableBalance - grandTotal;
-    finalizeSuccessfulCheckout(grandTotal, `Paid via Customer Account Balance (${currentActiveAccount.number})`);
+    await finalizeSuccessfulCheckout(
+        grandTotal,
+        `Paid via Customer Account Balance (${currentActiveAccount.number})`,
+        account => { account.balance = availableBalance - grandTotal; }
+    );
 };
 
 window.checkoutWithStripeLive = async function() {
+    if(checkoutInProgress) return;
     if(currentCart.length === 0) { alert('Cart is empty. Scan items first.'); return; }
     if(!validateCartStock()) return;
     let grandTotal = getCartGrandTotal();
@@ -2001,26 +2225,19 @@ window.checkoutWithStripeLive = async function() {
         return;
     }
 
-    let stripeMode = localStorage.getItem('rf_stripe_mode') || 'real';
+    let stripeMode = localStorage.getItem('rf_stripe_mode') || 'fake';
 
-    if(stripeMode === 'fake') {
-        SoundEngine.playSuccess();
-        alert(`[Sandbox Fake Money Mode] Processing test payment for ${formatCurrency(grandTotal)}...`);
-        finalizeSuccessfulCheckout(grandTotal, `Sandbox Fake Money Payment`);
+    if(stripeMode !== 'fake') {
+        SoundEngine.playError();
+        showInsufficientModal('Live card processing is not connected to a secure payment server. No card was charged. Use sandbox mode or connect a secure server-side Stripe integration.');
         return;
     }
 
-    try {
-        SoundEngine.playSuccess();
-        alert(`Initiating secure Stripe Live Real Money checkout session for ${formatCurrency(grandTotal)}...`);
-        finalizeSuccessfulCheckout(grandTotal, `Stripe Live Real Money Payment`);
-    } catch(err) {
-        SoundEngine.playError();
-        alert('Stripe Checkout Error: ' + err.message);
-    }
+    await finalizeSuccessfulCheckout(grandTotal, `Sandbox Payment Simulation`);
 };
 
 window.openCardOnFileModal = function() {
+    if(checkoutInProgress) return;
     if(currentCart.length === 0) { alert('Cart is empty. Scan items first.'); return; }
     if(!currentActiveAccount) { SoundEngine.playError(); showInsufficientModal('Load a customer account with cards on file first.'); return; }
     if(!currentActiveAccount.cards || currentActiveAccount.cards.length === 0) {
@@ -2041,7 +2258,8 @@ window.openCardOnFileModal = function() {
     container.innerHTML = `<p class="rounded-xl bg-slate-950 p-3 text-center text-xs text-slate-200">Purchase total: <strong class="text-emerald-400">${formatCurrency(grandTotal)}</strong></p>`;
 
     currentActiveAccount.cards.forEach((card, idx) => {
-        let cardBalance = Number(card.balance) || 0;
+        let rawCardBalance = Number(card.balance);
+        let cardBalance = Number.isFinite(rawCardBalance) && rawCardBalance >= 0 ? rawCardBalance : 0;
         let isEligible = card.status === 'active' && cardBalance >= grandTotal;
         let remaining = cardBalance - grandTotal;
         container.innerHTML += `
@@ -2061,7 +2279,8 @@ window.openCardOnFileModal = function() {
     document.getElementById('cardOnFileModal').classList.remove('hidden');
 };
 
-window.executeCardOnFileCheckout = function(cardIdx) {
+window.executeCardOnFileCheckout = async function(cardIdx) {
+    if(checkoutInProgress) return;
     if(!currentActiveAccount || currentCart.length === 0 || !currentActiveAccount.cards?.[cardIdx]) {
         SoundEngine.playError();
         showInsufficientModal('The saved card or active cart is no longer available. Scan the account and items again.');
@@ -2070,10 +2289,10 @@ window.executeCardOnFileCheckout = function(cardIdx) {
     if(!validateCartStock()) return;
     let card = currentActiveAccount.cards[cardIdx];
     let grandTotal = getCartGrandTotal();
-    let cardBalance = Number(card.balance) || 0;
-    if(!Number.isFinite(grandTotal) || grandTotal <= 0) {
+    let cardBalance = Number(card.balance);
+    if(!Number.isFinite(grandTotal) || grandTotal <= 0 || !Number.isFinite(cardBalance) || cardBalance < 0) {
         SoundEngine.playError();
-        showInsufficientModal('The cart total is invalid. Check product prices and discounts.');
+        showInsufficientModal('The cart total or saved card balance is invalid. Check account and cart details.');
         return;
     }
     if(card.status !== 'active') {
@@ -2087,45 +2306,102 @@ window.executeCardOnFileCheckout = function(cardIdx) {
         return;
     }
 
-    card.balance = cardBalance - grandTotal;
-    document.getElementById('cardOnFileModal').classList.add('hidden');
-    finalizeSuccessfulCheckout(grandTotal, `Paid from Saved Card Balance (${card.number})`);
+    await finalizeSuccessfulCheckout(
+        grandTotal,
+        `Paid from Saved Card Balance (${card.number})`,
+        account => { account.cards[cardIdx].balance = cardBalance - grandTotal; }
+    );
 };
 
-function finalizeSuccessfulCheckout(grandTotal, txDescription) {
-    currentCart.forEach(item => {
-        let prod = products.find(p => p.number === item.product.number);
-        if(prod) prod.stock = Math.max(0, (prod.stock || 0) - item.quantity);
-    });
+async function finalizeSuccessfulCheckout(grandTotal, txDescription, applyPayment = null) {
+    if(checkoutInProgress) return false;
+    checkoutInProgress = true;
+    const checkoutAccount = currentActiveAccount;
+    const accountSnapshot = checkoutAccount ? {
+        balance: checkoutAccount.balance,
+        points: checkoutAccount.points,
+        history: Array.isArray(checkoutAccount.history) ? [...checkoutAccount.history] : [],
+        cards: Array.isArray(checkoutAccount.cards) ? checkoutAccount.cards.map(card => ({ ...card })) : []
+    } : null;
+    const stockSnapshot = products.map(product => [product, product.stock]);
+    const queueLength = offlineTransactionQueue.length;
+    const earnedPoints = Math.floor(grandTotal);
 
-    let earnedPoints = Math.floor(grandTotal);
-    if(currentActiveAccount) {
-        currentActiveAccount.points = (currentActiveAccount.points || 0) + earnedPoints;
-        currentActiveAccount.history.push({ date: new Date().toLocaleString(), text: `${txDescription} (-${formatCurrency(grandTotal)} | +${earnedPoints} Pts) by ${currentOperator}` });
+    try {
+        if(applyPayment && checkoutAccount) applyPayment(checkoutAccount);
+        currentCart.forEach(item => {
+            let product = products.find(entry => entry.number === item.product.number);
+            if(product) product.stock = Math.max(0, Number(product.stock) - item.quantity);
+        });
+
+        if(checkoutAccount) {
+            checkoutAccount.points = (Number(checkoutAccount.points) || 0) + earnedPoints;
+            if(!Array.isArray(checkoutAccount.history)) checkoutAccount.history = [];
+            checkoutAccount.history.push({ date: new Date().toLocaleString(), text: `${txDescription} (-${formatCurrency(grandTotal)} | +${earnedPoints} Pts) by ${currentOperator}` });
+        }
+        offlineTransactionQueue.push({ date: new Date().toLocaleString(), total: grandTotal, operator: currentOperator });
+
+        if(!await saveUserData()) {
+            throw new Error(lastCloudSaveError || 'The store did not confirm the checkout save.');
+        }
+    } catch(error) {
+        if(checkoutAccount && accountSnapshot) {
+            checkoutAccount.balance = accountSnapshot.balance;
+            checkoutAccount.points = accountSnapshot.points;
+            checkoutAccount.history = accountSnapshot.history;
+            checkoutAccount.cards = accountSnapshot.cards;
+            currentActiveAccount = checkoutAccount;
+        }
+        stockSnapshot.forEach(([product, stock]) => { product.stock = stock; });
+        offlineTransactionQueue.length = queueLength;
+        checkoutInProgress = false;
+        console.error('Checkout could not be saved:', error);
+        SoundEngine.playError();
+        let reason = error instanceof Error ? error.message : String(error);
+        let permissionHelp = /permission|denied|unauthorized/i.test(reason)
+            ? ' Check the Firebase Realtime Database write rules for this store.'
+            : ' Check the database connection and try again.';
+        showInsufficientModal(`Checkout was not saved, so no purchase was completed. Your cart is still available. Database error: ${reason}.${permissionHelp}`);
+        renderAccountsList();
+        renderProductsList();
+        updateDashboardStats();
+        renderCartTable();
+        if(checkoutAccount) {
+            document.getElementById('modalAccBalance').innerText = formatCurrency(checkoutAccount.balance);
+            document.getElementById('modalAccPoints').innerText = `${checkoutAccount.points || 0} Pts`;
+            renderModalHistory();
+        }
+        return false;
     }
 
-    offlineTransactionQueue.push({ date: new Date().toLocaleString(), total: grandTotal, operator: currentOperator });
-
-    saveUserData();
-
     if (typeof WebhookManager !== 'undefined') {
-        WebhookManager.send('purchases', 'Successful Checkout Transaction', [
-            { name: 'Customer', value: currentActiveAccount ? `${currentActiveAccount.name} (${currentActiveAccount.number})` : 'Walk-in Guest', inline: true },
-            { name: 'Grand Total', value: formatCurrency(grandTotal), inline: true },
-            { name: 'Payment Method', value: txDescription, inline: true },
-            { name: 'Operator', value: currentOperator, inline: true },
-            { name: 'Loyalty Earned', value: `${earnedPoints} Pts`, inline: true }
-        ], 3066993);
+        try {
+            let webhookResult = WebhookManager.send('purchases', 'Successful Checkout Transaction', [
+                { name: 'Customer', value: checkoutAccount ? `${checkoutAccount.name} (${checkoutAccount.number})` : 'Walk-in Guest', inline: true },
+                { name: 'Grand Total', value: formatCurrency(grandTotal), inline: true },
+                { name: 'Payment Method', value: txDescription, inline: true },
+                { name: 'Operator', value: currentOperator, inline: true },
+                { name: 'Loyalty Earned', value: `${earnedPoints} Pts`, inline: true }
+            ], 3066993);
+            if(webhookResult && typeof webhookResult.catch === 'function') {
+                webhookResult.catch(error => console.error('Checkout webhook failed:', error));
+            }
+        } catch(error) {
+            console.error('Checkout webhook failed:', error);
+        }
     }
 
     SoundEngine.playSuccess();
-    if(currentActiveAccount) loadAccountByNumber(currentActiveAccount.number);
+    if(document.getElementById('cardOnFileModal')) document.getElementById('cardOnFileModal').classList.add('hidden');
+    if(checkoutAccount) loadAccountByNumber(checkoutAccount.number);
     currentCart = [];
     appliedCoupon = null;
     renderCartTable();
 
     if(typeof confetti !== 'undefined') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
-    alert(`Checkout successful for ${formatCurrency(grandTotal)}!`);
+    checkoutInProgress = false;
+    alert(`Checkout successful for ${formatCurrency(grandTotal)}!${txDescription.includes('Sandbox') ? ' Sandbox only; no real card was charged.' : ''}`);
+    return true;
 }
 
 window.checkoutWithGiftCard = function() {
@@ -2143,10 +2419,10 @@ window.executeGiftCardPayment = function() {
     if(!validateCartStock()) return;
 
     let grandTotal = getCartGrandTotal();
-    let giftCardBalance = Number(gc.balance) || 0;
-    if(!Number.isFinite(grandTotal) || grandTotal <= 0) {
+    let giftCardBalance = Number(gc.balance);
+    if(!Number.isFinite(grandTotal) || grandTotal <= 0 || !Number.isFinite(giftCardBalance) || giftCardBalance < 0) {
         SoundEngine.playError();
-        showInsufficientModal('The cart total is invalid. Check product prices and discounts.');
+        showInsufficientModal('The cart total or gift card balance is invalid. Check the gift card and cart details.');
         return;
     }
     if(giftCardBalance < grandTotal) {
@@ -2161,6 +2437,14 @@ window.executeGiftCardPayment = function() {
     });
 
     gc.balance = giftCardBalance - grandTotal;
+    if(currentActiveAccount) {
+        let earnedPoints = Math.floor(grandTotal);
+        currentActiveAccount.points = (currentActiveAccount.points || 0) + earnedPoints;
+        currentActiveAccount.history.push({
+            date: new Date().toLocaleString(),
+            text: `Paid with Gift Card ${gc.code} (-${formatCurrency(grandTotal)} | +${earnedPoints} Pts) by ${currentOperator}`
+        });
+    }
     offlineTransactionQueue.push({ date: new Date().toLocaleString(), total: grandTotal, operator: currentOperator });
     saveUserData();
 
@@ -2254,6 +2538,11 @@ window.closeCameraScannerModal = async function() {
 };
 
 window.promptMoneyAction = function(type) {
+    if(!currentActiveAccount) {
+        SoundEngine.playError();
+        showInsufficientModal('Load a customer account before changing its balance.');
+        return;
+    }
     let elAmt = document.getElementById('transAmount');
     let amt = parseFloat(elAmt?.value);
     if(isNaN(amt) || amt <= 0) { alert('Enter valid amount.'); return; }
@@ -2281,6 +2570,18 @@ window.verifyPinAndExecute = function() {
     let pin = document.getElementById('pinInput').value;
     let adminPin = localStorage.getItem('rf_main_op_pin') || '2285';
     if(pin !== adminPin) { SoundEngine.playError(); alert('Invalid Security PIN!'); return; }
+    if(!currentActiveAccount || !pendingAction || pendingAction.type !== 'remove' ||
+        !Number.isFinite(pendingAction.amount) || pendingAction.amount <= 0) {
+        SoundEngine.playError();
+        showInsufficientModal('The account or authorized balance operation is no longer available. Reopen the account and try again.');
+        closePinModal();
+        return;
+    }
+    if(Number(currentActiveAccount.balance) < pendingAction.amount) {
+        SoundEngine.playError();
+        showInsufficientModal(`Insufficient account balance. Available: ${formatCurrency(currentActiveAccount.balance)}; requested: ${formatCurrency(pendingAction.amount)}.`);
+        return;
+    }
 
     currentActiveAccount.balance -= pendingAction.amount;
     currentActiveAccount.history.push({ date: new Date().toLocaleString(), text: `Removed ${formatCurrency(pendingAction.amount)} (Admin Auth)` });
@@ -2302,9 +2603,14 @@ window.verifyPinAndExecute = function() {
 };
 
 window.applyDiscount = function() {
+    if(!currentActiveAccount) {
+        SoundEngine.playError();
+        showInsufficientModal('Load a customer account before applying an account adjustment.');
+        return;
+    }
     let elDisc = document.getElementById('discountPercent');
     let pct = parseFloat(elDisc?.value);
-    if(isNaN(pct) || pct <= 0) { alert('Enter discount percentage.'); return; }
+    if(!Number.isFinite(pct) || pct <= 0 || pct > 100) { alert('Enter a percentage between 1 and 100.'); return; }
     let discountVal = (currentActiveAccount.balance * (pct / 100));
     currentActiveAccount.balance -= discountVal;
     currentActiveAccount.history.push({ date: new Date().toLocaleString(), text: `Applied ${pct}% discount (-${formatCurrency(discountVal)})` });
@@ -2327,25 +2633,21 @@ window.closeInsufficientModal = function() {
 window.discoverAllConnectedHardware = async function() {
     let container = document.getElementById('hardwareDeviceListContainer');
     if(!container) return;
-    container.innerHTML = `<p class="text-xs text-amber-300 animate-pulse">Scanning Bluetooth and USB ports for keyboards, laser scanners, and printers...</p>`;
-    
-    setTimeout(() => {
-        container.innerHTML = `
-            <div class="p-3 bg-slate-900 rounded-xl border border-white/5 flex justify-between items-center text-xs">
-                <div><p class="font-bold text-slate-100">USB Laser Barcode Scanner</p><p class="text-[10px] text-amber-400">HID Keyboard Emulation (Active & Listening)</p></div>
-                <span class="px-2 py-1 bg-emerald-500/20 text-emerald-300 rounded text-[10px]">Connected</span>
-            </div>
-            <div class="p-3 bg-slate-900 rounded-xl border border-white/5 flex justify-between items-center text-xs mt-2">
-                <div><p class="font-bold text-slate-100">Bluetooth Thermal Receipt Printer</p><p class="text-[10px] text-amber-400">SPP Profile / ESC-POS</p></div>
-                <span class="px-2 py-1 bg-emerald-500/20 text-emerald-300 rounded text-[10px]">Connected</span>
-            </div>
-            <div class="p-3 bg-slate-900 rounded-xl border border-white/5 flex justify-between items-center text-xs mt-2">
-                <div><p class="font-bold text-slate-100">Bluetooth EMV Credit Card Terminal</p><p class="text-[10px] text-amber-400">Secure Chip Reader</p></div>
-                <span class="px-2 py-1 bg-emerald-500/20 text-emerald-300 rounded text-[10px]">Connected</span>
-            </div>
-        `;
-        SoundEngine.playSuccess();
-    }, 800);
+    container.innerHTML = `
+        <div class="p-3 bg-slate-900 rounded-xl border border-white/5 flex justify-between items-center text-xs">
+            <div><p class="font-bold text-slate-100">Barcode scanners</p><p class="text-[10px] text-amber-400">Keyboard-wedge scans are supported by the active scanner listener.</p></div>
+            <span class="px-2 py-1 bg-sky-500/20 text-sky-300 rounded text-[10px]">Input ready</span>
+        </div>
+        <div class="p-3 bg-slate-900 rounded-xl border border-white/5 flex justify-between items-center text-xs mt-2">
+            <div><p class="font-bold text-slate-100">Receipt printers</p><p class="text-[10px] text-amber-400">Use the browser print dialog; direct printer detection is not available.</p></div>
+            <span class="px-2 py-1 bg-slate-700 text-slate-300 rounded text-[10px]">Not detected</span>
+        </div>
+        <div class="p-3 bg-slate-900 rounded-xl border border-white/5 flex justify-between items-center text-xs mt-2">
+            <div><p class="font-bold text-slate-100">Payment terminals</p><p class="text-[10px] text-amber-400">No payment terminal integration is configured.</p></div>
+            <span class="px-2 py-1 bg-slate-700 text-slate-300 rounded text-[10px]">Not integrated</span>
+        </div>
+    `;
+    SoundEngine.playClick();
 };
 
 window.unlockAdminSettings = function() {
@@ -2354,13 +2656,10 @@ window.unlockAdminSettings = function() {
     document.getElementById('settingsLockedBox').classList.add('hidden');
     document.getElementById('settingsUnlockedBox').classList.remove('hidden');
 
-    let pubInput = document.getElementById('stripePubInput');
-    let secInput = document.getElementById('stripeSecInput');
     let modeSelect = document.getElementById('stripeModeSelect');
     let themeSelect = document.getElementById('themeToggleSetting');
-    if(pubInput) pubInput.value = localStorage.getItem('rf_stripe_pub') || 'pk_live_51UB59F7GI7FzkBKdzZ6tMG3dIobIZ4xYW0xM3g4rwpve1pl031XDBxlWTI7XDW7tbxkJxz1QRGpC9DPi0uuqAebC00mVrwcqko';
-    if(secInput) secInput.value = localStorage.getItem('rf_stripe_sec') || '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';
-    if(modeSelect) modeSelect.value = localStorage.getItem('rf_stripe_mode') || 'real';
+    localStorage.removeItem('rf_stripe_sec');
+    if(modeSelect) modeSelect.value = 'fake';
     if(themeSelect) themeSelect.value = localStorage.getItem('nexus_theme') || 'dark';
 
     let soundSet = document.getElementById('soundToggleSetting');
@@ -2370,14 +2669,10 @@ window.unlockAdminSettings = function() {
 };
 
 window.saveStripeSettings = function() {
-    let pub = document.getElementById('stripePubInput').value.trim();
-    let sec = document.getElementById('stripeSecInput').value.trim();
-    let mode = document.getElementById('stripeModeSelect').value;
-    localStorage.setItem('rf_stripe_pub', pub);
-    localStorage.setItem('rf_stripe_sec', sec);
-    localStorage.setItem('rf_stripe_mode', mode);
+    localStorage.removeItem('rf_stripe_sec');
+    localStorage.setItem('rf_stripe_mode', 'fake');
     SoundEngine.playSuccess();
-    alert('Stripe Gateway configuration saved successfully!');
+    alert('Sandbox simulation mode saved. Real card processing is disabled until a secure server-side payment integration is connected.');
 };
 
 window.saveAllWebhookSettings = function() {
@@ -2411,8 +2706,12 @@ window.toggleSoundEffects = function(val) {
     localStorage.setItem('rf_sound', val);
 };
 
-function saveUserData() {
-    if(!currentMainOperator) return;
+async function saveUserData() {
+    lastCloudSaveError = null;
+    if(!currentMainOperator) {
+        lastCloudSaveError = 'No store owner session is active. Log in to the store again.';
+        return false;
+    }
     let storeData = {
         pin: localStorage.getItem('rf_main_op_pin') || '2285',
         accounts,
@@ -2424,7 +2723,12 @@ function saveUserData() {
         timeclock: timeclockEntries,
         queue: offlineTransactionQueue
     };
-    set(ref(db, `stores/${currentMainOperator}`), storeData).catch(err => {
+    try {
+        await set(ref(db, `stores/${currentMainOperator}`), storeData);
+        return true;
+    } catch(err) {
+        lastCloudSaveError = err instanceof Error ? err.message : String(err);
         console.error("Cloud Sync Failed:", err);
-    });
+        return false;
+    }
 }
