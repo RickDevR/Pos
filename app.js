@@ -765,37 +765,195 @@ window.resetAccountForm = function() {
     updateFormBarcodePreview('newAccNumber', 'accBarcodePreviewSvg');
 };
 
-window.printAccountBadge = function(num, name, balance, imgData) {
-    let win = window.open('', '', 'height=650,width=450');
-    if(!win) return;
-    win.document.write(`<html><head><title>Customer ID Badge</title></head>
-    <body style="font-family:sans-serif;text-align:center;padding:30px;background:#0f172a;color:#f8fafc;">
-        <div style="border:3px solid #f59e0b;border-radius:24px;padding:30px;background:#1e293b;max-width:350px;margin:0 auto;box-shadow:0 10px 25px rgba(0,0,0,0.5);">
-            <h2 style="color:#f59e0b;margin-bottom:5px;font-size:18px;letter-spacing:1px;">NEXUS LUXURY ENTERPRISE</h2>
-            <p style="color:#94a3b8;font-size:11px;margin-bottom:20px;text-transform:uppercase;">VIP Customer Membership ID Badge</p>
-            ${imgData ? `<img src="${imgData}" style="width:110px;height:110px;border-radius:50%;object-fit:cover;border:3px solid #f59e0b;margin-bottom:15px;" />` : `<div style="width:110px;height:110px;border-radius:50%;background:#334155;color:#f59e0b;display:flex;align-items:center;justify-content:center;font-size:40px;margin:0 auto 15px auto;border:3px solid #f59e0b;">${name.charAt(0)}</div>`}
-            <h3 style="font-size:22px;margin:5px 0;color:#ffffff;">${name}</h3>
-            <p style="color:#10b981;font-size:15px;font-weight:bold;margin-bottom:15px;">Balance: $${parseFloat(balance).toFixed(2)}</p>
-            <div style="background:#0f172a;padding:15px;border-radius:12px;display:inline-block;border:1px solid rgba(245,158,11,0.3);">
-                <svg id="accBadgeSvg"></svg>
-            </div>
-            <p style="color:#64748b;font-size:10px;margin-top:15px;">Scan barcode at terminal for instant account access.</p>
-        </div>
-        <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-        <script>
-            try {
-                JsBarcode('#accBadgeSvg', '${num}', { format: 'CODE128', lineColor: '#f59e0b', background: 'transparent', width: 2, height: 50, displayValue: true, fontSize: 12, fontOptions: 'bold' });
-            } catch(e) {}
-            window.print();
-            window.close();
-        </script>
-    </body></html>`);
-    win.document.close();
+function escapePrintHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    })[char]);
+}
+
+function createPrintBarcode(code) {
+    if(typeof JsBarcode === 'undefined') {
+        alert('Barcode printing is unavailable because the barcode library did not load.');
+        return '';
+    }
+    let svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    try {
+        JsBarcode(svg, String(code), {
+            format: 'CODE128',
+            lineColor: '#111827',
+            background: '#ffffff',
+            width: 1.5,
+            height: 42,
+            displayValue: true,
+            fontSize: 11,
+            margin: 4
+        });
+    } catch(error) {
+        alert(`Could not create barcode "${code}": ${error.message}`);
+        return '';
+    }
+    return new XMLSerializer().serializeToString(svg);
+}
+
+function printRecords(title, records) {
+    if(!records.length) {
+        alert(`There are no ${title.toLowerCase()} to print.`);
+        return;
+    }
+    let printWindow = window.open('', '_blank', 'width=900,height=700');
+    if(!printWindow) {
+        alert('The print window was blocked. Allow pop-ups for this site and try again.');
+        return;
+    }
+
+    let cards = [];
+    for(let record of records) {
+        let barcode = createPrintBarcode(record.code);
+        if(!barcode) {
+            printWindow.close();
+            return;
+        }
+        let image = record.image
+            ? `<img class="record-image" src="${escapePrintHtml(record.image)}" alt="">`
+            : '';
+        let fields = record.fields.map(field =>
+            `<div class="field"><span>${escapePrintHtml(field.label)}</span><strong>${escapePrintHtml(field.value)}</strong></div>`
+        ).join('');
+        cards.push(`
+            <article class="print-card ${record.type}">
+                <div class="card-heading">
+                    ${image}
+                    <div><div class="record-type">${escapePrintHtml(record.heading)}</div>
+                    <h2>${escapePrintHtml(record.name)}</h2></div>
+                </div>
+                <div class="fields">${fields}</div>
+                <div class="barcode">${barcode}</div>
+            </article>
+        `);
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(`<!doctype html>
+        <html><head><meta charset="utf-8"><title>${escapePrintHtml(title)}</title>
+        <style>
+            @page { size: auto; margin: 10mm; }
+            * { box-sizing: border-box; }
+            body { margin: 0; color: #111827; font: 12px Arial, sans-serif; }
+            header { margin-bottom: 14px; border-bottom: 2px solid #d1d5db; padding-bottom: 8px; }
+            header h1 { margin: 0 0 4px; font-size: 18px; }
+            header p { margin: 0; color: #4b5563; font-size: 10px; }
+            .print-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+            .print-card { min-width: 0; break-inside: avoid; page-break-inside: avoid; border: 1px solid #9ca3af; border-radius: 8px; padding: 10px; }
+            .card-heading { display: flex; align-items: center; gap: 9px; min-height: 36px; }
+            .record-image { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; }
+            .record-type { color: #4b5563; font-size: 8px; font-weight: bold; letter-spacing: .08em; text-transform: uppercase; }
+            h2 { margin: 2px 0 0; font-size: 13px; overflow-wrap: anywhere; }
+            .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 10px; margin: 8px 0; }
+            .field { min-width: 0; }
+            .field span { display: block; color: #6b7280; font-size: 8px; text-transform: uppercase; }
+            .field strong { display: block; margin-top: 1px; font-size: 10px; overflow-wrap: anywhere; }
+            .barcode { text-align: center; }
+            .barcode svg { max-width: 100%; height: auto; }
+            @media screen { body { max-width: 900px; margin: 20px auto; padding: 0 16px; } }
+            @media print { header { margin-bottom: 10px; } }
+        </style></head><body>
+        <header><h1>${escapePrintHtml(title)}</h1><p>${records.length} record${records.length === 1 ? '' : 's'} · print from this window</p></header>
+        <main class="print-grid">${cards.join('')}</main>
+        <script>window.addEventListener('load', () => setTimeout(() => { window.focus(); window.print(); }, 250));</script>
+        </body></html>`);
+    printWindow.document.close();
+}
+
+function accountPrintRecord(account) {
+    return {
+        type: 'account',
+        heading: 'Customer account ID',
+        name: account.name,
+        code: account.number,
+        image: account.image || '',
+        fields: [
+            { label: 'Account ID', value: account.number },
+            { label: 'Email', value: account.email || '—' },
+            { label: 'Balance', value: formatCurrency(Number(account.balance) || 0) },
+            { label: 'Loyalty points', value: account.points || 0 },
+            { label: 'Card status', value: account.cards?.[0]?.status || 'No card on file' }
+        ]
+    };
+}
+
+function productPrintRecord(product) {
+    return {
+        type: 'product',
+        heading: 'Product barcode label',
+        name: product.name,
+        code: product.number,
+        image: product.image || '',
+        fields: [
+            { label: 'Barcode / SKU', value: product.number },
+            { label: 'Price', value: formatCurrency(Number(product.price) || 0) },
+            { label: 'Stock', value: product.stock || 0 }
+        ]
+    };
+}
+
+function giftCardPrintRecord(giftCard) {
+    return {
+        type: 'gift-card',
+        heading: 'Gift card',
+        name: giftCard.name,
+        code: giftCard.code,
+        fields: [
+            { label: 'Gift card code', value: giftCard.code },
+            { label: 'Balance', value: formatCurrency(Number(giftCard.balance) || 0) }
+        ]
+    };
+}
+
+window.printAllRecords = function() {
+    printRecords('All IDs & Labels', [
+        ...accounts.map(accountPrintRecord),
+        ...products.map(productPrintRecord),
+        ...giftCards.map(giftCardPrintRecord)
+    ]);
+};
+
+window.printAllAccounts = function() {
+    printRecords('Customer Accounts', accounts.map(accountPrintRecord));
+};
+
+window.printFilteredAccounts = function() {
+    let filter = document.getElementById('filterAccountInput')?.value.trim().toLowerCase() || '';
+    let filtered = accounts.filter(account =>
+        account.name.toLowerCase().includes(filter) || account.number.toLowerCase().includes(filter)
+    );
+    printRecords(filter ? 'Filtered Customer Accounts' : 'Customer Accounts', filtered.map(accountPrintRecord));
+};
+
+window.printAllProducts = function() {
+    printRecords('Products & Barcodes', products.map(productPrintRecord));
+};
+
+window.printAllGiftCards = function() {
+    printRecords('Gift Cards', giftCards.map(giftCardPrintRecord));
+};
+
+window.printAccountByIndex = function(index) {
+    let account = accounts[index];
+    if(account) printRecords('Customer Account ID', [accountPrintRecord(account)]);
+};
+
+window.printAccountBadge = function(num) {
+    let account = accounts.find(item => item.number === num);
+    if(account) printRecords('Customer Account ID', [accountPrintRecord(account)]);
 };
 
 window.printCurrentAccountBadge = function() {
     if(!currentActiveAccount) return;
-    printAccountBadge(currentActiveAccount.number, currentActiveAccount.name, currentActiveAccount.balance, currentActiveAccount.image || '');
+    window.printAccountBadge(currentActiveAccount.number);
 };
 
 function renderAccountsList(filter = '') {
@@ -805,6 +963,7 @@ function renderAccountsList(filter = '') {
     let filtered = accounts.filter(a => a.name.toLowerCase().includes(filter.toLowerCase()) || a.number.toLowerCase().includes(filter.toLowerCase()));
 
     filtered.forEach(acc => {
+        let accountIndex = accounts.indexOf(acc);
         let cardSummary = acc.cards && acc.cards.length > 0 ? `${acc.cards.length} Card(s) on File` : 'No Cards';
         let img = acc.image || '';
         container.innerHTML += `
@@ -829,7 +988,7 @@ function renderAccountsList(filter = '') {
                 </div>
                 <div class="flex flex-wrap gap-2">
                     <button onclick="loadAccountByNumber('${acc.number}')" class="flex-1 py-2.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold rounded-xl text-xs hover:bg-amber-500/35 transition-all pointer-events-auto">Load</button>
-                    <button onclick="printAccountBadge('${acc.number}', '${acc.name}', ${acc.balance}, '${img}')" class="px-3 py-2.5 bg-sky-500/20 text-sky-300 rounded-xl text-xs font-bold pointer-events-auto">Print</button>
+                    <button onclick="printAccountByIndex(${accountIndex})" class="px-3 py-2.5 bg-sky-500/20 text-sky-300 rounded-xl text-xs font-bold pointer-events-auto">Print</button>
                     <button onclick="editAccount('${acc.number}')" class="px-3 py-2.5 bg-indigo-500/20 text-indigo-300 rounded-xl text-xs font-bold pointer-events-auto">Edit</button>
                     ${isMainOpSession ? `<button onclick="deleteAccount('${acc.number}')" class="px-3 py-2.5 bg-rose-500/20 text-rose-300 rounded-xl text-xs font-bold pointer-events-auto"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
                 </div>
@@ -1061,7 +1220,7 @@ function renderProductsList() {
     container.innerHTML = '';
     if(products.length === 0) { container.innerHTML = `<div class="text-center py-8 text-slate-500 text-xs">No products found.</div>`; return; }
     
-    products.forEach(p => {
+    products.forEach((p, index) => {
         let isLowStock = (p.stock || 0) <= 5;
         container.innerHTML += `
             <div class="p-4 rounded-3xl bg-slate-900/65 backdrop-blur-2xl border ${isLowStock ? 'border-rose-500/50 animate-pulse' : 'border-amber-500/20'} flex flex-col sm:flex-row items-center justify-between shadow-lg gap-3 pointer-events-auto">
@@ -1077,7 +1236,7 @@ function renderProductsList() {
                 </div>
                 <div class="flex gap-2 w-full sm:w-auto justify-end">
                     <button onclick="editProduct('${p.number}')" class="px-3 py-2 bg-sky-500/20 text-sky-300 rounded-xl text-xs font-bold pointer-events-auto">Edit</button>
-                    <button onclick="printBarcodeLabel('${p.number}', '${p.name}')" class="px-3 py-2 bg-amber-500/20 text-amber-300 rounded-xl text-xs font-bold pointer-events-auto">Print</button>
+                    <button onclick="printProductByIndex(${index})" class="px-3 py-2 bg-amber-500/20 text-amber-300 rounded-xl text-xs font-bold pointer-events-auto">Print</button>
                     ${isMainOpSession ? `<button onclick="deleteProduct('${p.number}')" class="px-3 py-2 bg-rose-500/20 text-rose-300 rounded-xl text-xs font-bold pointer-events-auto">Delete</button>` : ''}
                 </div>
             </div>
@@ -1093,13 +1252,22 @@ function renderProductsList() {
 }
 
 window.printBarcodeLabel = function(code, title) {
-    let win = window.open('', '', 'height=400,width=400');
-    if(!win) return;
-    win.document.write(`<html><head><title>Print Barcode</title></head><body style="text-align:center;padding-top:40px;font-family:sans-serif;">`);
-    win.document.write(`<h3>${title}</h3><svg id="bSvg"></svg>`);
-    win.document.write(`<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script><script>try{JsBarcode('#bSvg', '${code}', {format:'CODE128', width:2, height:80, displayValue:true});}catch(e){} window.print(); window.close();</script>`);
-    win.document.write(`</body></html>`);
-    win.document.close();
+    let giftCard = giftCards.find(item => item.code === code);
+    let product = products.find(item => item.number === code);
+    if(giftCard) printRecords('Gift Card', [giftCardPrintRecord(giftCard)]);
+    else if(product) printRecords('Product Barcode', [productPrintRecord(product)]);
+    else printRecords(title || 'Barcode', [{
+        type: 'barcode',
+        heading: 'Barcode',
+        name: title || code,
+        code,
+        fields: [{ label: 'Code', value: code }]
+    }]);
+};
+
+window.printProductByIndex = function(index) {
+    let product = products[index];
+    if(product) printRecords('Product Barcode', [productPrintRecord(product)]);
 };
 
 window.handleCouponFormSubmit = function(e) {
@@ -1228,7 +1396,7 @@ function renderGiftCardsList() {
     let container = document.getElementById('giftCardsListContainer');
     if(!container) return;
     container.innerHTML = '';
-    giftCards.forEach(g => {
+    giftCards.forEach((g, index) => {
         container.innerHTML += `
             <div class="p-4 rounded-3xl bg-slate-900/60 border border-amber-500/20 flex flex-col sm:flex-row items-center justify-between shadow-lg gap-3">
                 <div class="flex items-center gap-3 w-full sm:w-auto">
@@ -1240,7 +1408,7 @@ function renderGiftCardsList() {
                 </div>
                 <div class="flex gap-2 w-full sm:w-auto justify-end">
                     <button onclick="editGiftCard('${g.code}')" class="px-3 py-1.5 bg-sky-500/20 text-sky-300 rounded-xl text-xs font-bold">Edit</button>
-                    <button onclick="printBarcodeLabel('${g.code}', 'Gift Card: ${g.name}')" class="px-3 py-1.5 bg-amber-500/20 text-amber-300 rounded-xl text-xs font-bold">Print</button>
+                    <button onclick="printGiftCardByIndex(${index})" class="px-3 py-1.5 bg-amber-500/20 text-amber-300 rounded-xl text-xs font-bold">Print</button>
                     <button onclick="deleteGiftCard('${g.code}')" class="px-3 py-1.5 bg-rose-500/20 text-rose-300 rounded-xl text-xs font-bold">Delete</button>
                 </div>
             </div>
@@ -1254,6 +1422,11 @@ function renderGiftCardsList() {
         } catch(e) {}
     });
 }
+
+window.printGiftCardByIndex = function(index) {
+    let giftCard = giftCards[index];
+    if(giftCard) printRecords('Gift Card', [giftCardPrintRecord(giftCard)]);
+};
 
 // --- EMPLOYEE & CASHIER ID BADGE MANAGEMENT ---
 window.handleEmployeeFormSubmit = function(e) {

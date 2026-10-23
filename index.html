@@ -170,6 +170,9 @@
                     </div>
                     <div class="flex flex-wrap gap-3 w-full sm:w-auto">
                         <input type="text" id="filterAccountInput" oninput="filterAccountList(this.value)" placeholder="Filter accounts..." class="bg-slate-950 border border-amber-500/30 rounded-2xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-400 w-full sm:w-60 shadow-inner pointer-events-auto">
+                        <button onclick="printAllRecords()" class="w-full sm:w-auto px-4 py-2.5 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold rounded-2xl text-xs pointer-events-auto">Print All IDs &amp; Labels</button>
+                        <button onclick="printAllAccounts()" class="w-full sm:w-auto px-4 py-2.5 bg-sky-500/20 border border-sky-500/40 text-sky-300 font-bold rounded-2xl text-xs pointer-events-auto">Print All Accounts</button>
+                        <button onclick="printFilteredAccounts()" class="w-full sm:w-auto px-4 py-2.5 bg-slate-800 text-slate-200 font-bold rounded-2xl text-xs pointer-events-auto">Print Filtered</button>
                         <button onclick="switchTab('createAccount')" class="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-amber-500 to-indigo-600 text-slate-950 font-black rounded-2xl text-xs uppercase tracking-wider shadow-lg pointer-events-auto">+ New Account</button>
                     </div>
                 </div>
@@ -289,7 +292,10 @@
                         </form>
                     </div>
                     <div class="space-y-4">
-                        <h2 class="text-lg sm:text-xl font-black text-slate-100">Cloud Inventory & Barcodes</h2>
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <h2 class="text-lg sm:text-xl font-black text-slate-100">Cloud Inventory & Barcodes</h2>
+                            <button onclick="printAllProducts()" class="px-4 py-2.5 bg-sky-500/20 border border-sky-500/40 text-sky-300 font-bold rounded-2xl text-xs pointer-events-auto">Print All Products</button>
+                        </div>
                         <div id="productsListContainer" class="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar pointer-events-auto"></div>
                     </div>
                 </div>
@@ -363,7 +369,10 @@
                         </form>
                     </div>
                     <div class="space-y-4">
-                        <h2 class="text-lg sm:text-xl font-black text-slate-100">Issued Gift Cards</h2>
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <h2 class="text-lg sm:text-xl font-black text-slate-100">Issued Gift Cards</h2>
+                            <button onclick="printAllGiftCards()" class="px-4 py-2.5 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold rounded-2xl text-xs pointer-events-auto">Print All Gift Cards</button>
+                        </div>
                         <div id="giftCardsListContainer" class="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar pointer-events-auto"></div>
                     </div>
                 </div>
