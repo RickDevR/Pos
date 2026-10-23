@@ -21,24 +21,13 @@
     border-radius: 9999px;
 }
 
-/* Theme Color Variables */
-body[data-theme="light-theme"] {
-    background-color: #f8fafc !important;
-    color: #0f172a !important;
+/* Ensure smooth touch responsiveness on mobile devices */
+input, select, textarea, button {
+    touch-action: manipulation;
 }
-body[data-theme="light-theme"] aside {
-    background-color: #ffffff !important;
-    border-color: rgba(0,0,0,0.1) !important;
-}
-body[data-theme="light-theme"] .bg-slate-900\/60,
-body[data-theme="light-theme"] .bg-slate-900\/50,
-body[data-theme="light-theme"] .bg-slate-950\/60 {
-    background-color: rgba(255, 255, 255, 0.8) !important;
-    border-color: rgba(0, 0, 0, 0.1) !important;
-    color: #0f172a !important;
-}
-body[data-theme="light-theme"] input, body[data-theme="light-theme"] textarea, body[data-theme="light-theme"] select {
-    background-color: #f1f5f9 !important;
-    color: #0f172a !important;
-    border-color: #cbd5e1 !important;
+
+@media (max-width: 768px) {
+    body {
+        font-size: 13px !important;
+    }
 }

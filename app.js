@@ -1,4 +1,4 @@
-// Nexus Luxury Enterprise POS Engine v8.6 - Guaranteed Click Execution & Checkout Handlers
+// Nexus Luxury Enterprise POS Engine v8.7 - Guaranteed Click Execution & Responsive Handlers
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getDatabase, ref, set, get, remove, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
@@ -45,7 +45,6 @@ function formatCurrency(amount) {
     return `${CurrencySymbols[currentCurrency] || '$'}${amount.toFixed(2)}`;
 }
 
-// Realistic Scan & POS Sound Engine
 const SoundEngine = {
     enabled: localStorage.getItem('rf_sound') !== 'OFF',
     playClick() {
@@ -125,10 +124,10 @@ const SoundEngine = {
 };
 
 const loadingTips = [
-    "Tip: USB Laser Barcode Scanner ready for instant wedge input.",
-    "Tip: Scan barcodes on create/edit forms to instantly capture and save new barcodes.",
-    "Tip: Cashier ID badges with photo upload and QR/barcodes fully enabled.",
-    "Tip: Multi-channel Discord Webhook logging active across all operations."
+    "Tip: Fully responsive mobile & desktop UI layout active.",
+    "Tip: USB Laser Barcode Scanner ready for instant account and product loading.",
+    "Tip: Customer circular photo ID badges fully enabled for printing.",
+    "Tip: Fake money sandbox & live Stripe payment gateways fully synchronized."
 ];
 
 window.onload = function() {
@@ -157,28 +156,49 @@ window.onload = function() {
 // --- USB BARCODE SCANNER GLOBAL HID KEYBOARD WEDGE LISTENER ---
 function setupUsbBarcodeScannerListener() {
     let barcodeBuffer = '';
-    let lastKeyTime = Date.now();
+    let lastKeyTime = 0;
+    let isRapidSequence = false;
+    let lastInputTarget = null;
 
     window.addEventListener('keydown', (e) => {
         let currentTime = Date.now();
-        let activeEl = document.activeElement;
+        if(e.target !== lastInputTarget) {
+            barcodeBuffer = '';
+            isRapidSequence = false;
+            lastKeyTime = 0;
+            lastInputTarget = e.target;
+        }
 
         if (e.key === 'Enter') {
-            if (barcodeBuffer.trim().length >= 2) {
+            let isBarcodeScan = isRapidSequence &&
+                barcodeBuffer.trim().length >= 2 &&
+                currentTime - lastKeyTime <= 100;
+            if (isBarcodeScan) {
                 let scannedCode = barcodeBuffer.trim();
-                barcodeBuffer = '';
                 e.preventDefault();
+                barcodeBuffer = '';
+                isRapidSequence = false;
+                lastKeyTime = 0;
                 SoundEngine.playScan();
                 handleUniversalScan(scannedCode);
             } else {
                 barcodeBuffer = '';
+                isRapidSequence = false;
+                lastKeyTime = 0;
             }
-        } else if (e.key.length === 1) {
-            if (currentTime - lastKeyTime > 60) {
-                barcodeBuffer = '';
+        } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            if (lastKeyTime === 0 || currentTime - lastKeyTime > 60) {
+                barcodeBuffer = e.key;
+                isRapidSequence = false;
+            } else {
+                barcodeBuffer += e.key;
+                isRapidSequence = true;
             }
-            barcodeBuffer += e.key;
             lastKeyTime = currentTime;
+        } else {
+            barcodeBuffer = '';
+            isRapidSequence = false;
+            lastKeyTime = 0;
         }
     }, true);
 }
@@ -188,8 +208,6 @@ window.handleUniversalScan = function(code) {
     if(!code) return;
 
     let activeInput = document.activeElement;
-    
-    // If an input field is currently active or focused, populate it immediately
     if(activeInput && ['INPUT', 'TEXTAREA'].includes(activeInput.tagName)) {
         activeInput.value = code;
         activeInput.dispatchEvent(new Event('input'));
@@ -202,7 +220,14 @@ window.handleUniversalScan = function(code) {
         return;
     }
 
-    // Check if any creation/edit tab is currently visible, and auto-target its barcode input field
+    // Instantly check if scanned code matches a customer account
+    let acc = accounts.find(a => a.number.toLowerCase() === code.toLowerCase());
+    if(acc) {
+        loadAccountByNumber(acc.number);
+        SoundEngine.playSuccess();
+        return;
+    }
+
     let createAccTab = document.getElementById('tab-createAccount');
     let productsTab = document.getElementById('tab-products');
     let gcTab = document.getElementById('tab-giftcards');
@@ -239,7 +264,7 @@ window.handleUniversalScan = function(code) {
         return;
     }
 
-    // Default fallback: process as product scan
+    // Process as product scan
     let prod = products.find(p => p.number === code);
     if(prod) {
         switchTab('accounts');
@@ -279,10 +304,10 @@ function applyInitialTheme() {
     let bodyRoot = document.getElementById('bodyRoot');
     if(savedTheme === 'light') {
         htmlRoot.classList.remove('dark');
-        bodyRoot.className = 'bg-slate-100 text-slate-900 font-sans antialiased overflow-x-hidden select-none transition-colors duration-500 touch-manipulation';
+        bodyRoot.className = 'bg-slate-100 text-slate-900 font-sans antialiased overflow-x-hidden select-none transition-colors duration-500 touch-manipulation text-sm sm:text-base';
     } else {
         htmlRoot.classList.add('dark');
-        bodyRoot.className = 'bg-slate-950 text-slate-100 font-sans antialiased overflow-x-hidden select-none transition-colors duration-500 touch-manipulation';
+        bodyRoot.className = 'bg-slate-950 text-slate-100 font-sans antialiased overflow-x-hidden select-none transition-colors duration-500 touch-manipulation text-sm sm:text-base';
     }
 }
 
@@ -607,7 +632,6 @@ window.executeQuickSearch = function() {
     else { SoundEngine.playError(); showInsufficientModal(`Account search "${query}" not found.`); }
 };
 
-// --- HELPER TO UPDATE FORM BARCODE PREVIEWS ---
 window.updateFormBarcodePreview = function(inputId, svgId) {
     let inputVal = document.getElementById(inputId)?.value.trim();
     let svgEl = document.getElementById(svgId);
@@ -640,44 +664,57 @@ window.handleAccountFormSubmit = function(e) {
     let cardBal = parseFloat(document.getElementById('newCardBal').value) || 500.00;
     let cardStatus = document.getElementById('newCardStatus').value;
     let info = document.getElementById('newAccInfo').value.trim();
+    let fileInput = document.getElementById('accImageFile');
 
     let cardsList = cardNum ? [{ number: cardNum, balance: cardBal, status: cardStatus, exp: '12/28', cvc: '123' }] : [];
 
-    if(oldNum) {
-        let acc = accounts.find(a => a.number === oldNum);
-        if(acc) {
-            acc.number = number;
-            acc.name = name;
-            acc.email = email;
-            acc.balance = balance;
-            if(cardsList.length > 0) acc.cards = cardsList;
-            acc.info = info;
-            acc.history.push({ date: new Date().toLocaleString(), text: `Account profile updated by ${currentOperator}` });
+    let reader = new FileReader();
+    let saveAcc = (imgData = '') => {
+        if(oldNum) {
+            let acc = accounts.find(a => a.number === oldNum);
+            if(acc) {
+                acc.number = number;
+                acc.name = name;
+                acc.email = email;
+                acc.balance = balance;
+                if(cardsList.length > 0) acc.cards = cardsList;
+                acc.info = info;
+                if(imgData) acc.image = imgData;
+                acc.history.push({ date: new Date().toLocaleString(), text: `Account profile updated by ${currentOperator}` });
+            }
+        } else {
+            if(accounts.some(a => a.number === number)) { SoundEngine.playError(); showInsufficientModal(`Account number "${number}" already exists!`); return; }
+            accounts.push({
+                number, name, email, balance, points: 0, cards: cardsList, info, image: imgData,
+                history: [{ date: new Date().toLocaleString(), text: `Account created with balance ${formatCurrency(balance)}` }]
+            });
         }
+
+        saveUserData();
+
+        if (typeof WebhookManager !== 'undefined') {
+            WebhookManager.send('accounts', oldNum ? 'Customer Account Updated' : 'New Customer Account Created', [
+                { name: 'Account Number', value: number, inline: true },
+                { name: 'Client Name', value: name, inline: true },
+                { name: 'Email', value: email, inline: true },
+                { name: 'Balance', value: formatCurrency(balance), inline: true },
+                { name: 'Operator', value: currentOperator, inline: true }
+            ], 10181046);
+        }
+
+        SoundEngine.playSuccess();
+        resetAccountForm();
+        switchTab('accounts');
+        alert('Account saved successfully!');
+    };
+
+    if(fileInput && fileInput.files && fileInput.files[0]) {
+        reader.onload = function(evt) { saveAcc(evt.target.result); };
+        reader.readAsDataURL(fileInput.files[0]);
     } else {
-        if(accounts.some(a => a.number === number)) { SoundEngine.playError(); showInsufficientModal(`Account number "${number}" already exists!`); return; }
-        accounts.push({
-            number, name, email, balance, points: 0, cards: cardsList, info,
-            history: [{ date: new Date().toLocaleString(), text: `Account created with balance ${formatCurrency(balance)}` }]
-        });
+        let existing = accounts.find(x => x.number === oldNum);
+        saveAcc(existing ? existing.image : '');
     }
-
-    saveUserData();
-
-    if (typeof WebhookManager !== 'undefined') {
-        WebhookManager.send('accounts', oldNum ? 'Customer Account Updated' : 'New Customer Account Created', [
-            { name: 'Account Number', value: number, inline: true },
-            { name: 'Client Name', value: name, inline: true },
-            { name: 'Email', value: email, inline: true },
-            { name: 'Balance', value: formatCurrency(balance), inline: true },
-            { name: 'Operator', value: currentOperator, inline: true }
-        ], 10181046);
-    }
-
-    SoundEngine.playSuccess();
-    resetAccountForm();
-    switchTab('accounts');
-    alert('Account saved successfully!');
 };
 
 window.editAccount = function(num) {
@@ -728,6 +765,39 @@ window.resetAccountForm = function() {
     updateFormBarcodePreview('newAccNumber', 'accBarcodePreviewSvg');
 };
 
+window.printAccountBadge = function(num, name, balance, imgData) {
+    let win = window.open('', '', 'height=650,width=450');
+    if(!win) return;
+    win.document.write(`<html><head><title>Customer ID Badge</title></head>
+    <body style="font-family:sans-serif;text-align:center;padding:30px;background:#0f172a;color:#f8fafc;">
+        <div style="border:3px solid #f59e0b;border-radius:24px;padding:30px;background:#1e293b;max-width:350px;margin:0 auto;box-shadow:0 10px 25px rgba(0,0,0,0.5);">
+            <h2 style="color:#f59e0b;margin-bottom:5px;font-size:18px;letter-spacing:1px;">NEXUS LUXURY ENTERPRISE</h2>
+            <p style="color:#94a3b8;font-size:11px;margin-bottom:20px;text-transform:uppercase;">VIP Customer Membership ID Badge</p>
+            ${imgData ? `<img src="${imgData}" style="width:110px;height:110px;border-radius:50%;object-fit:cover;border:3px solid #f59e0b;margin-bottom:15px;" />` : `<div style="width:110px;height:110px;border-radius:50%;background:#334155;color:#f59e0b;display:flex;align-items:center;justify-content:center;font-size:40px;margin:0 auto 15px auto;border:3px solid #f59e0b;">${name.charAt(0)}</div>`}
+            <h3 style="font-size:22px;margin:5px 0;color:#ffffff;">${name}</h3>
+            <p style="color:#10b981;font-size:15px;font-weight:bold;margin-bottom:15px;">Balance: $${parseFloat(balance).toFixed(2)}</p>
+            <div style="background:#0f172a;padding:15px;border-radius:12px;display:inline-block;border:1px solid rgba(245,158,11,0.3);">
+                <svg id="accBadgeSvg"></svg>
+            </div>
+            <p style="color:#64748b;font-size:10px;margin-top:15px;">Scan barcode at terminal for instant account access.</p>
+        </div>
+        <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+        <script>
+            try {
+                JsBarcode('#accBadgeSvg', '${num}', { format: 'CODE128', lineColor: '#f59e0b', background: 'transparent', width: 2, height: 50, displayValue: true, fontSize: 12, fontOptions: 'bold' });
+            } catch(e) {}
+            window.print();
+            window.close();
+        </script>
+    </body></html>`);
+    win.document.close();
+};
+
+window.printCurrentAccountBadge = function() {
+    if(!currentActiveAccount) return;
+    printAccountBadge(currentActiveAccount.number, currentActiveAccount.name, currentActiveAccount.balance, currentActiveAccount.image || '');
+};
+
 function renderAccountsList(filter = '') {
     let container = document.getElementById('accountsGrid');
     if(!container) return;
@@ -736,15 +806,19 @@ function renderAccountsList(filter = '') {
 
     filtered.forEach(acc => {
         let cardSummary = acc.cards && acc.cards.length > 0 ? `${acc.cards.length} Card(s) on File` : 'No Cards';
+        let img = acc.image || '';
         container.innerHTML += `
-            <div class="p-6 rounded-3xl bg-slate-900/60 backdrop-blur-2xl border border-amber-500/20 hover:border-amber-500/55 transition-all flex flex-col justify-between space-y-4 shadow-xl pointer-events-auto">
+            <div class="p-5 sm:p-6 rounded-3xl bg-slate-900/60 backdrop-blur-2xl border border-amber-500/20 hover:border-amber-500/55 transition-all flex flex-col justify-between space-y-4 shadow-xl pointer-events-auto">
                 <div>
-                    <div class="flex justify-between items-start mb-3">
-                        <span class="text-xs font-mono text-amber-400 bg-amber-500/10 px-3 py-1 rounded-xl border border-amber-500/25">${acc.number}</span>
-                        <span class="text-emerald-400 font-black text-lg">${formatCurrency(acc.balance)}</span>
+                    <div class="flex items-center gap-3 mb-3">
+                        ${img ? `<img src="${img}" class="w-12 h-12 rounded-full object-cover border-2 border-amber-500/50 shrink-0">` : `<div class="w-12 h-12 rounded-full bg-amber-500/20 text-amber-300 font-bold flex items-center justify-center text-lg shrink-0 border-2 border-amber-500/40">${acc.name.charAt(0)}</div>`}
+                        <div>
+                            <span class="text-xs font-mono text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-xl border border-amber-500/25">${acc.number}</span>
+                            <h3 class="text-base sm:text-lg font-bold text-slate-100 mt-0.5">${acc.name}</h3>
+                        </div>
                     </div>
-                    <h3 class="text-lg font-bold text-slate-100">${acc.name}</h3>
-                    <p class="text-xs text-slate-400 mt-0.5">${acc.email}</p>
+                    <p class="text-xs text-slate-400">${acc.email}</p>
+                    <p class="text-emerald-400 font-black text-lg my-1">${formatCurrency(acc.balance)}</p>
                     <div class="my-2 flex justify-center bg-slate-950 p-2 rounded-xl border border-white/5">
                         <svg class="barcode-svg" data-code="${acc.number}"></svg>
                     </div>
@@ -753,9 +827,9 @@ function renderAccountsList(filter = '') {
                         <span class="text-[10px] text-sky-400 font-mono">${cardSummary}</span>
                     </div>
                 </div>
-                <div class="flex gap-2">
+                <div class="flex flex-wrap gap-2">
                     <button onclick="loadAccountByNumber('${acc.number}')" class="flex-1 py-2.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold rounded-xl text-xs hover:bg-amber-500/35 transition-all pointer-events-auto">Load</button>
-                    <button onclick="printBarcodeLabel('${acc.number}', 'Account: ${acc.name}')" class="px-3 py-2.5 bg-sky-500/20 text-sky-300 rounded-xl text-xs font-bold pointer-events-auto">Print</button>
+                    <button onclick="printAccountBadge('${acc.number}', '${acc.name}', ${acc.balance}, '${img}')" class="px-3 py-2.5 bg-sky-500/20 text-sky-300 rounded-xl text-xs font-bold pointer-events-auto">Print</button>
                     <button onclick="editAccount('${acc.number}')" class="px-3 py-2.5 bg-indigo-500/20 text-indigo-300 rounded-xl text-xs font-bold pointer-events-auto">Edit</button>
                     ${isMainOpSession ? `<button onclick="deleteAccount('${acc.number}')" class="px-3 py-2.5 bg-rose-500/20 text-rose-300 rounded-xl text-xs font-bold pointer-events-auto"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
                 </div>
@@ -765,7 +839,7 @@ function renderAccountsList(filter = '') {
     document.querySelectorAll('.barcode-svg').forEach(svg => {
         try {
             if(typeof JsBarcode !== 'undefined') {
-                JsBarcode(svg, svg.dataset.code, { format: "CODE128", lineColor: "#f59e0b", background: "transparent", width: 1.5, height: 35, displayValue: true, fontSize: 10 });
+                JsBarcode(svg, svg.dataset.code, { format: "CODE128", lineColor: "#f59e0b", background: "transparent", width: 1.5, height: 32, displayValue: true, fontSize: 10 });
             }
         } catch(e) {}
     });
@@ -775,13 +849,18 @@ function renderAccountsList(filter = '') {
 window.filterAccountList = function(val) { renderAccountsList(val); };
 
 window.loadAccountByNumber = function(num) {
-    let acc = accounts.find(a => a.number === num);
+    let acc = accounts.find(a => a.number.toLowerCase() === num.toLowerCase());
     if(!acc) { SoundEngine.playError(); showInsufficientModal(`Account number "${num}" not found.`); return; }
     currentActiveAccount = acc;
     currentCart = [];
     appliedCoupon = null;
 
-    document.getElementById('modalAvatar').innerText = acc.name.charAt(0);
+    let avatarContainer = document.getElementById('modalAvatarContainer');
+    if(acc.image) {
+        avatarContainer.innerHTML = `<img src="${acc.image}" class="w-full h-full object-cover rounded-2xl">`;
+    } else {
+        document.getElementById('modalAvatar').innerText = acc.name.charAt(0);
+    }
     document.getElementById('modalAccName').innerText = acc.name;
     document.getElementById('modalAccNum').innerText = acc.number;
     document.getElementById('modalAccEmail').innerText = acc.email;
@@ -816,7 +895,7 @@ function renderModalHistory() {
     container.innerHTML = '';
     currentActiveAccount.history.slice().reverse().forEach(h => {
         container.innerHTML += `
-            <div class="p-3.5 rounded-2xl bg-slate-900 border border-white/5 text-xs flex justify-between items-center shadow-inner">
+            <div class="p-3 rounded-2xl bg-slate-900 border border-white/5 text-xs flex justify-between items-center shadow-inner">
                 <span class="text-slate-300 font-medium">${h.text}</span>
                 <span class="text-slate-500 font-mono text-[10px]">${h.date}</span>
             </div>
@@ -844,7 +923,7 @@ window.processScannedCode = function(code) {
     code = code.trim();
     if(!code) return;
 
-    let acc = accounts.find(a => a.number === code);
+    let acc = accounts.find(a => a.number.toLowerCase() === code.toLowerCase());
     if(acc) {
         closeAccountModal();
         loadAccountByNumber(acc.number);
@@ -852,10 +931,10 @@ window.processScannedCode = function(code) {
         return;
     }
 
-    let prod = products.find(p => p.number === code);
+    let prod = products.find(p => p.number.toLowerCase() === code.toLowerCase());
     if(prod) {
         if((prod.stock || 0) <= 0) { SoundEngine.playError(); showInsufficientModal(`Product "${prod.name}" is out of stock!`); return; }
-        let existing = currentCart.find(i => i.product.number === code);
+        let existing = currentCart.find(i => i.product.number === prod.number);
         if(existing) existing.quantity += 1;
         else currentCart.push({ product: prod, quantity: 1, discount: 0 });
         let input = document.getElementById('cartProdNumInput');
@@ -865,7 +944,7 @@ window.processScannedCode = function(code) {
         return;
     }
 
-    let coup = coupons.find(c => c.code === code);
+    let coup = coupons.find(c => c.code.toLowerCase() === code.toLowerCase());
     if(coup) {
         appliedCoupon = coup;
         let input = document.getElementById('cartProdNumInput');
@@ -876,7 +955,7 @@ window.processScannedCode = function(code) {
         return;
     }
 
-    let gc = giftCards.find(g => g.code === code);
+    let gc = giftCards.find(g => g.code.toLowerCase() === code.toLowerCase());
     if(gc) {
         let input = document.getElementById('cartProdNumInput');
         if(input) input.value = '';
@@ -985,18 +1064,18 @@ function renderProductsList() {
     products.forEach(p => {
         let isLowStock = (p.stock || 0) <= 5;
         container.innerHTML += `
-            <div class="p-4 rounded-3xl bg-slate-900/65 backdrop-blur-2xl border ${isLowStock ? 'border-rose-500/50 animate-pulse' : 'border-amber-500/20'} flex items-center justify-between shadow-lg pointer-events-auto">
-                <div class="flex items-center gap-4">
+            <div class="p-4 rounded-3xl bg-slate-900/65 backdrop-blur-2xl border ${isLowStock ? 'border-rose-500/50 animate-pulse' : 'border-amber-500/20'} flex flex-col sm:flex-row items-center justify-between shadow-lg gap-3 pointer-events-auto">
+                <div class="flex items-center gap-3 w-full sm:w-auto">
                     <svg class="barcode-svg" data-code="${p.number}"></svg>
                     <div>
                         <div class="flex items-center gap-2">
                             <h4 class="font-bold text-slate-100 text-sm">${p.name}</h4>
-                            ${isLowStock ? `<span class="bg-rose-500/20 text-rose-300 text-[9px] font-bold px-2 py-0.5 rounded-full border border-rose-500/40">LOW STOCK (${p.stock})</span>` : ''}
+                            ${isLowStock ? `<span class="bg-rose-500/20 text-rose-300 text-[9px] font-bold px-2 py-0.5 rounded-full border border-rose-500/40">LOW (${p.stock})</span>` : ''}
                         </div>
-                        <p class="text-xs text-amber-400 font-mono mt-0.5">Item #: ${p.number} | <strong class="text-emerald-400">${formatCurrency(p.price)}</strong> | Stock: ${p.stock || 0}</p>
+                        <p class="text-xs text-amber-400 font-mono mt-0.5">SKU: ${p.number} | <strong class="text-emerald-400">${formatCurrency(p.price)}</strong> | Stock: ${p.stock || 0}</p>
                     </div>
                 </div>
-                <div class="flex gap-2">
+                <div class="flex gap-2 w-full sm:w-auto justify-end">
                     <button onclick="editProduct('${p.number}')" class="px-3 py-2 bg-sky-500/20 text-sky-300 rounded-xl text-xs font-bold pointer-events-auto">Edit</button>
                     <button onclick="printBarcodeLabel('${p.number}', '${p.name}')" class="px-3 py-2 bg-amber-500/20 text-amber-300 rounded-xl text-xs font-bold pointer-events-auto">Print</button>
                     ${isMainOpSession ? `<button onclick="deleteProduct('${p.number}')" class="px-3 py-2 bg-rose-500/20 text-rose-300 rounded-xl text-xs font-bold pointer-events-auto">Delete</button>` : ''}
@@ -1007,7 +1086,7 @@ function renderProductsList() {
     document.querySelectorAll('.barcode-svg').forEach(svg => {
         try {
             if(typeof JsBarcode !== 'undefined') {
-                JsBarcode(svg, svg.dataset.code, { format: "CODE128", lineColor: "#f59e0b", background: "transparent", width: 1.5, height: 35, displayValue: true, fontSize: 10 });
+                JsBarcode(svg, svg.dataset.code, { format: "CODE128", lineColor: "#f59e0b", background: "transparent", width: 1.5, height: 32, displayValue: true, fontSize: 10 });
             }
         } catch(e) {}
     });
@@ -1151,15 +1230,15 @@ function renderGiftCardsList() {
     container.innerHTML = '';
     giftCards.forEach(g => {
         container.innerHTML += `
-            <div class="p-4 rounded-3xl bg-slate-900/60 border border-amber-500/20 flex items-center justify-between shadow-lg">
-                <div class="flex items-center gap-3">
+            <div class="p-4 rounded-3xl bg-slate-900/60 border border-amber-500/20 flex flex-col sm:flex-row items-center justify-between shadow-lg gap-3">
+                <div class="flex items-center gap-3 w-full sm:w-auto">
                     <svg class="barcode-svg" data-code="${g.code}"></svg>
                     <div>
                         <h4 class="font-bold text-slate-100 text-sm">${g.name}</h4>
                         <p class="text-xs text-amber-400 font-mono mt-0.5">Code: ${g.code} | <strong class="text-emerald-400">${formatCurrency(g.balance)}</strong></p>
                     </div>
                 </div>
-                <div class="flex gap-2">
+                <div class="flex gap-2 w-full sm:w-auto justify-end">
                     <button onclick="editGiftCard('${g.code}')" class="px-3 py-1.5 bg-sky-500/20 text-sky-300 rounded-xl text-xs font-bold">Edit</button>
                     <button onclick="printBarcodeLabel('${g.code}', 'Gift Card: ${g.name}')" class="px-3 py-1.5 bg-amber-500/20 text-amber-300 rounded-xl text-xs font-bold">Print</button>
                     <button onclick="deleteGiftCard('${g.code}')" class="px-3 py-1.5 bg-rose-500/20 text-rose-300 rounded-xl text-xs font-bold">Delete</button>
@@ -1176,7 +1255,7 @@ function renderGiftCardsList() {
     });
 }
 
-// --- EMPLOYEE & CASHIER ID BADGE MANAGEMENT WITH QR/BARCODE ---
+// --- EMPLOYEE & CASHIER ID BADGE MANAGEMENT ---
 window.handleEmployeeFormSubmit = function(e) {
     e.preventDefault();
     let oldName = document.getElementById('editEmpOldName').value;
@@ -1306,7 +1385,7 @@ function renderPayrollList() {
                     </div>
                 </div>
                 <div class="flex gap-2 w-full sm:w-auto justify-end">
-                    <button onclick="printCashierBadge('${emp.name}', '${emp.role}', '${bcode}', '${pass}', '${img}')" class="px-3 py-2 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold">Print ID Badge</button>
+                    <button onclick="printCashierBadge('${emp.name}', '${emp.role}', '${bcode}', '${pass}', '${img}')" class="px-3 py-2 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold">Print Badge</button>
                     <button onclick="editEmployee('${emp.name}')" class="px-3 py-2 bg-sky-500/20 text-sky-300 rounded-xl text-xs font-bold">Edit</button>
                     <button onclick="deleteEmployee('${emp.name}')" class="px-3 py-2 bg-rose-500/20 text-rose-300 rounded-xl text-xs font-bold">Remove</button>
                 </div>
@@ -1589,25 +1668,25 @@ function renderCartTable() {
 
         tbody.innerHTML += `
             <tr class="hover:bg-white/5">
-                <td class="p-3 flex items-center gap-3">
-                    ${item.product.image ? `<img src="${item.product.image}" class="w-8 h-8 rounded-lg object-cover">` : ''}
-                    <span class="font-bold">${item.product.name}</span>
+                <td class="p-2 sm:p-3 flex items-center gap-2 sm:gap-3">
+                    ${item.product.image ? `<img src="${item.product.image}" class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg object-cover">` : ''}
+                    <span class="font-bold truncate max-w-[120px] sm:max-w-none">${item.product.name}</span>
                 </td>
-                <td class="p-3 font-mono text-amber-400">${item.product.number}</td>
-                <td class="p-3">${formatCurrency(item.product.price)}</td>
-                <td class="p-3">
-                    <div class="flex items-center gap-2">
+                <td class="p-2 sm:p-3 font-mono text-amber-400">${item.product.number}</td>
+                <td class="p-2 sm:p-3">${formatCurrency(item.product.price)}</td>
+                <td class="p-2 sm:p-3">
+                    <div class="flex items-center gap-1 sm:gap-2">
                         <button onclick="updateCartQty(${idx}, -1)" class="w-6 h-6 bg-slate-800 rounded-lg font-bold">-</button>
                         <span class="font-bold">${item.quantity}</span>
                         <button onclick="updateCartQty(${idx}, 1)" class="w-6 h-6 bg-amber-500 text-slate-950 rounded-lg font-bold">+</button>
                     </div>
                 </td>
-                <td class="p-3">
-                    <input type="number" value="${item.discount}" min="0" max="100" onchange="updateItemDiscount(${idx}, this.value)" class="w-16 bg-slate-900 border border-amber-500/30 rounded-lg px-2 py-1 text-xs">
+                <td class="p-2 sm:p-3">
+                    <input type="number" value="${item.discount}" min="0" max="100" onchange="updateItemDiscount(${idx}, this.value)" class="w-14 bg-slate-900 border border-amber-500/30 rounded-lg px-2 py-1 text-xs">
                 </td>
-                <td class="p-3 text-emerald-400 font-bold">${formatCurrency(itemTotal)}</td>
-                <td class="p-3 text-right">
-                    <button onclick="removeCartItem(${idx})" class="px-3 py-1 bg-rose-500/20 text-rose-300 rounded-lg text-xs">Remove</button>
+                <td class="p-2 sm:p-3 text-emerald-400 font-bold">${formatCurrency(itemTotal)}</td>
+                <td class="p-2 sm:p-3 text-right">
+                    <button onclick="removeCartItem(${idx})" class="px-2.5 py-1 bg-rose-500/20 text-rose-300 rounded-lg text-xs">Remove</button>
                 </td>
             </tr>
         `;
@@ -1716,7 +1795,7 @@ window.openCardOnFileModal = function() {
             </div>
         `;
     });
-    document.getElementById('cardOnFileModal').classList.add('hidden');
+    document.getElementById('cardOnFileModal').classList.remove('hidden');
 };
 
 window.executeCardOnFileCheckout = function(cardIdx) {
@@ -1818,7 +1897,7 @@ window.checkoutWithGiftCard = function() {
 
 window.executeGiftCardPayment = function() {
     let code = document.getElementById('payGcCodeInput').value.trim();
-    let gc = giftCards.find(g => g.code === code);
+    let gc = giftCards.find(g => g.code.toLowerCase() === code.toLowerCase());
     if(!gc) { SoundEngine.playError(); showInsufficientModal('Invalid Gift Card code.'); return; }
 
     let subtotal = currentCart.reduce((sum, item) => sum + ((item.product.price * item.quantity) * (1 - (item.discount / 100))), 0);
